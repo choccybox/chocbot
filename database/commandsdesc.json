@@ -1,0 +1,76 @@
+{
+  "audioanalyze": {
+    "quickdescript": "Transcribes audio/video to text, supports audio/video and links (youtube, twitter, instagram)",
+    "altnames": [
+      "audio",
+      "aa",
+      "audioanalyze",
+      "speech2text",
+      "s2t",
+      "stt"
+    ]
+  },
+  "downloader": {
+    "quickdescript": "Downloads a video/audio from social platforms (YouTube, Twitter, Instagram)",
+    "altnames": [
+      "download",
+      "down",
+      "dl"
+    ]
+  },
+  "lyricfinder": {
+    "quickdescript": "Fings lyrics for a song from music platforms (YouTube, Spotify, SoundCloud)",
+    "altnames": [
+      "lyrics",
+      "lyric",
+      "lyr",
+      "genius",
+      "gen"
+    ]
+  },
+  "riodejaneiro": {
+    "quickdescript": "Adds a Rio De Janeiro instagram filter over image/video",
+    "altnames": [
+      "rj",
+      "rio",
+      "riodejaneiro",
+      "rjd",
+      "rdj"
+    ]
+  },
+  "toaudio": {
+    "quickdescript": "Converts a video or other audio files to a mp3",
+    "altnames": [
+      "toaudio",
+      "2audio",
+      "toaud",
+      "2aud"
+    ]
+  },
+  "togif": {
+    "quickdescript": "Converts a video/image to a gif",
+    "altnames": [
+      "togif",
+      "gif",
+      "2gif"
+    ]
+  },
+  "toimage": {
+    "quickdescript": "Converts all video frames/first frame to image/s",
+    "altnames": [
+      "toimage",
+      "toimg",
+      "2img",
+      "2image"
+    ]
+  },
+  "tovideo": {
+    "quickdescript": "Converts a gif to a video",
+    "altnames": [
+      "tovideo",
+      "2video",
+      "tovid",
+      "2vid"
+    ]
+  }
+}

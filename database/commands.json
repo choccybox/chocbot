@@ -1,0 +1,104 @@
+{
+  "audio": {
+    "file": "audioanalyze.js"
+  },
+  "aa": {
+    "file": "audioanalyze.js"
+  },
+  "audioanalyze": {
+    "file": "audioanalyze.js"
+  },
+  "speech2text": {
+    "file": "audioanalyze.js"
+  },
+  "s2t": {
+    "file": "audioanalyze.js"
+  },
+  "stt": {
+    "file": "audioanalyze.js"
+  },
+  "download": {
+    "file": "downloader.js"
+  },
+  "down": {
+    "file": "downloader.js"
+  },
+  "dl": {
+    "file": "downloader.js"
+  },
+  "lyrics": {
+    "file": "lyricfinder.js"
+  },
+  "lyric": {
+    "file": "lyricfinder.js"
+  },
+  "lyr": {
+    "file": "lyricfinder.js"
+  },
+  "genius": {
+    "file": "lyricfinder.js"
+  },
+  "gen": {
+    "file": "lyricfinder.js"
+  },
+  "rj": {
+    "file": "riodejaneiro.js"
+  },
+  "rio": {
+    "file": "riodejaneiro.js"
+  },
+  "riodejaneiro": {
+    "file": "riodejaneiro.js"
+  },
+  "rjd": {
+    "file": "riodejaneiro.js"
+  },
+  "rdj": {
+    "file": "riodejaneiro.js"
+  },
+  "toaudio": {
+    "file": "toaudio.js"
+  },
+  "2audio": {
+    "file": "toaudio.js"
+  },
+  "toaud": {
+    "file": "toaudio.js"
+  },
+  "2aud": {
+    "file": "toaudio.js"
+  },
+  "togif": {
+    "file": "togif.js"
+  },
+  "gif": {
+    "file": "togif.js"
+  },
+  "2gif": {
+    "file": "togif.js"
+  },
+  "toimage": {
+    "file": "toimage.js"
+  },
+  "toimg": {
+    "file": "toimage.js"
+  },
+  "2img": {
+    "file": "toimage.js"
+  },
+  "2image": {
+    "file": "toimage.js"
+  },
+  "tovideo": {
+    "file": "tovideo.js"
+  },
+  "2video": {
+    "file": "tovideo.js"
+  },
+  "tovid": {
+    "file": "tovideo.js"
+  },
+  "2vid": {
+    "file": "tovideo.js"
+  }
+}
