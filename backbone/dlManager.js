@@ -191,7 +191,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
                 url: downloadUrl,
                 responseType: 'stream'
             });
-            const title = `${data.title || `twitter_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
+            const title = `${data.title && !/^https?:\/\/|www\./i.test(data.title) ? data.title : `twitter_${randomName}_${rnd5dig}`}` // use title if available and not a URL, otherwise use default
                 .replace(/https?:\/\/\S+/gi, '') // remove URLs
                 .split(' ').slice(0, 6).join(' ') // get first 6 words
                 .replace(/\s+/g, '_') // replace spaces with underscores
@@ -270,7 +270,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
                 url: downloadUrl,
                 responseType: 'stream'
             });
-            const title = `${data.title || `tiktok_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
+            const title = `${data.title && !/^https?:\/\/|www\./i.test(data.title) ? data.title : `tiktok_${randomName}_${rnd5dig}`}` // use title if available and not a URL, otherwise use default
                 .replace(/https?:\/\/\S+/gi, '')  // remove URLs
                 .replace(/[\u{1F600}-\u{1F6FF}\u{2600}-\u{27BF}]/gu, '')  // remove emojis
                 .replace(/#\w+\s*/g, '')  // remove hashtags
