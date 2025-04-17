@@ -4,23 +4,37 @@ const { twitter, igdl, ttdl } = require('btch-downloader');
 const ffmpeg = require('fluent-ffmpeg');
 const https = require('https');
 const { spawn } = require('child_process');
+const NodeID3 = require('node-id3');
+const ytdl = require("@distube/ytdl-core");
 
 async function downloadYoutube(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
         try {
             console.log('Downloading from YouTube:', downloadLink);
             console.log('Convert argument:', convertArg);
+            
+            // Get video info to extract thumbnail
+            const videoInfo = await ytdl.getBasicInfo(downloadLink);
+            const videoTitle = videoInfo.videoDetails.title;
+            
+            // Get highest resolution thumbnail
+            const thumbnails = videoInfo.videoDetails.thumbnails;
+            console.log(thumbnails);
+            const thumbnail = thumbnails.reduce((prev, current) => 
+                (prev.width > current.width) ? prev : current);
+            
             // Set download mode based on convertArg or if it's from music.youtube
             const downloadMode = (convertArg || isMusic) ? 'audio' : 'auto';
-            console.log('using this api:' + process.env.COBALTAPI)
+            console.log('using this api:' + process.env.COBALT_API)
             // Make POST request to Cobalt API
             const response = await axios({
                 method: 'POST',
-                url: process.env.COBALTAPI,
+                url: process.env.COBALT_API,
                 data: {
                     url: downloadLink,
                     videoQuality: '1080',
                     audioFormat: 'mp3',
+                    audioBitrate: '320',
                     filenameStyle: 'basic',
                     downloadMode: downloadMode,
                     youtubeDubLang: 'en',
@@ -63,10 +77,8 @@ async function downloadYoutube(message, downloadLink, randomName, rnd5dig, ident
             // Sanitize filename
             const sanitizedTitle = filename
                 .replace(/[<>:"/\\|?*]/g, '_')
-                .replace(/\s+/g, '_')
                 .replace(/\.mp[34]/gi, '') // Remove .mp3 or .mp4 extensions
-                .toLowerCase()
-                .slice(0, 200);
+                .toLowerCase();
             
             // Always use mp4 extension since we're always downloading videos
             const fileExt = (convertArg || isMusic) ? 'mp3' : 'mp4';
@@ -93,6 +105,88 @@ async function downloadYoutube(message, downloadLink, randomName, rnd5dig, ident
             });
             
             console.log('Download complete');
+
+            // Download and add thumbnail if converting to MP3
+            if ((convertArg == true || isMusic == true) && thumbnail) {
+                let thumbnailPath = null;
+                try {
+                    console.log(`Processing thumbnail for ${sanitizedTitle}...`);
+                    const thumbnailUrl = thumbnail.url;
+                    const thumbnailOutputPath = `temp/${sanitizedTitle}.jpg`;
+                    const croppedThumbnailPath = `temp/${sanitizedTitle}_cropped.jpg`;
+
+                    // Download thumbnail
+                    const thumbnailResponse = await axios({
+                        method: 'get',
+                        url: thumbnailUrl,
+                        responseType: 'stream'
+                    });
+
+                    const thumbnailWriter = fs.createWriteStream(thumbnailOutputPath);
+                    thumbnailResponse.data.pipe(thumbnailWriter);
+
+                    await new Promise((resolveThumb, rejectThumb) => {
+                        thumbnailWriter.on('finish', resolveThumb);
+                        thumbnailWriter.on('error', rejectThumb);
+                    });
+
+                    // Crop thumbnail to square using FFmpeg
+                    await new Promise((resolveCrop, rejectCrop) => {
+                        console.log(`Cropping thumbnail for ${sanitizedTitle}...`);
+                        ffmpeg(thumbnailOutputPath)
+                            .outputOptions([
+                                '-vf', 'crop=min(iw\\,ih):min(iw\\,ih)', // Crop to square from center
+                                '-q:v', '2' // Maintain good quality
+                            ])
+                            .output(croppedThumbnailPath)
+                            .on('end', () => {
+                                // Rename cropped thumbnail to original name
+                                fs.renameSync(croppedThumbnailPath, thumbnailOutputPath);
+                                thumbnailPath = thumbnailOutputPath;
+                                resolveCrop();
+                            })
+                            .on('error', (err) => {
+                                console.error(`Thumbnail crop error: ${err.message}`);
+                                rejectCrop(err);
+                            })
+                            .run();
+                    });
+
+                    console.log('thumbnailPath', thumbnailPath);
+                    console.log(`Adding thumbnail metadata to ${sanitizedTitle}...`);
+
+                    // Add a small delay to ensure file operations are complete
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Add thumbnail to MP3 metadata
+                    const imageBuffer = fs.readFileSync(thumbnailPath);
+                    const tags = {
+                        title: videoTitle,
+                        image: {
+                            mime: 'image/jpeg',
+                            type: {
+                                id: 3,
+                                name: 'front cover'
+                            },
+                            description: 'Cover',
+                            imageBuffer: imageBuffer
+                        }
+                    };
+
+                    const success = NodeID3.update(tags, outputFile);
+                    if (success) {
+                        console.log(`Successfully added metadata to ${sanitizedTitle}`);
+                    } else {
+                        console.error(`Failed to write ID3 tags to ${sanitizedTitle}`);
+                    }
+
+                    // Clean up thumbnail file
+                    fs.unlinkSync(thumbnailPath);
+                } catch (err) {
+                    console.error(`Error processing thumbnail: ${err.message}`);
+                    // Continue even if thumbnail processing fails
+                }
+            }
 
             console.log('using identifier:', useIdentifier);
 

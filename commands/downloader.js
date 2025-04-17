@@ -6,8 +6,9 @@ dotenv.config();
 const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
 const playlistdownloader = require('../backbone/ytPlaylistManager.js');
-const ytpl = require("@distube/ytpl");
+const ytpl = require('ytpl');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+
 
 module.exports = {
     run: async function handleMessage(message, client, isChained) {
@@ -38,9 +39,9 @@ module.exports = {
             return message.reply({ content: 'Please provide a valid link.' });
         // if link is a playlist, use the playlist downloader
         } else if (message.content.includes('playlist')) {
-            return message.reply({ content: 'Playlist downloading is currently disabled.' });
+            // return message.reply({ content: 'Playlist downloading is currently disabled.' });
         
-            /* try {
+            try {
             const playlistLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
             const playlistID = playlistLink.split('list=')[1].split('&')[0];
             const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
@@ -144,7 +145,7 @@ module.exports = {
             } catch (error) {
             console.error('Error processing playlist:', error);
             return message.reply({ content: 'Failed to process the playlist. Make sure the link is valid.' });
-            } */
+            }
         } else {
             try {
                 const downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];

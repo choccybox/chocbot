@@ -11,68 +11,78 @@ const https = require('https');
 const dotenv = require('dotenv');
 dotenv.config();
 
-async function searchForLyrics(message, searchLink) {
+async function searchForLyrics(message, searchLink, synced) {
     try {
-        if (/youtube\.com|youtu\.be|music\.youtube\.com/.test(searchLink)) {
-            if (searchLink.includes('music.youtube.com')) {
-                searchLink = searchLink.replace('music.', '');
-            }
-            // First install the package: npm install youtube-metadata-from-url
-            return new Promise((resolve, reject) => {
-                (async () => {
-                    try {
-                        // Only fetch basic metadata (title and channel)
-                        const metadata = await getMetadata.metadata(searchLink);                        
-                        const song = metadata.title;
-                        const artist = metadata.author_name.replace(" - Topic", "");
-                        console.log('YouTube video info:', song, artist);
-                        const result = await GeniusResult(song, artist);
-                        resolve(result);
-                    } catch (err) {
-                        console.error('Error fetching video info:', err);
-                        reject(err);
-                    }
-                })();
-            });
-        } else if (/spotify\.com|open\.spotify\.com/.test(searchLink)) {
-            return new Promise((resolve, reject) => {
-                (async () => {
-                    try {
-                        const { getData } = require('spotify-url-info')(spotifySearch)
-                        const data = await getData(searchLink, {
-                            headers: {
-                                'user-agent': 'googlebot'
-                            }
-                        });
-                        console.log(data);
-                        const song = data.title;
-                        const artist = data.artists[0].name;
-                        const result = await GeniusResult(song, artist);
-                        resolve(result);
-                    } catch (err) {
-                        console.error('Error fetching video info:', err);
-                        reject(err);
-                    }
-                })();
-            });
-        } else if (/soundcloud\.com/.test(searchLink)) {
-            return new Promise((resolve, reject) => {
-            (async () => {
-                try {
-                    searchLink = searchLink.split('?')[0];
-                    const searchSong = await soundCloudClient.getSongInfo(searchLink);
-                    const song = searchSong.title;
-                    const artist = searchSong.author.name;
-                    const result = await GeniusResult(song, artist);
-                    resolve(result);
-                } catch (err) {
-                    console.error('Error fetching song info:', err);
-                    reject(err);
+        if (/^(https?:\/\/)/.test(searchLink)) {
+            if (/youtube\.com|youtu\.be|music\.youtube\.com/.test(searchLink)) {
+                if (searchLink.includes('music.youtube.com')) {
+                    searchLink = searchLink.replace('music.', '');
                 }
-            })();
-            });
+                return new Promise((resolve, reject) => {
+                    (async () => {
+                        try {
+                            const metadata = await getMetadata.metadata(searchLink);                        
+                            const song = metadata.title;
+                            const artist = metadata.author_name.replace(" - Topic", "");
+                            console.log('YouTube video info:', song, artist);
+                            const result = await GeniusResult(song, artist);
+                            resolve(result);
+                        } catch (err) {
+                            console.error('Error fetching video info:', err);
+                            reject(err);
+                        }
+                    })();
+                });
+            } else if (/spotify\.com|open\.spotify\.com/.test(searchLink)) {
+                return new Promise((resolve, reject) => {
+                    (async () => {
+                        try {
+                            const { getData } = require('spotify-url-info')(spotifySearch)
+                            const data = await getData(searchLink, {
+                                headers: {
+                                    'user-agent': 'googlebot'
+                                }
+                            });
+                            console.log(data);
+                            const song = data.title;
+                            const artist = data.artists[0].name;
+                            const result = await GeniusResult(song, artist);
+                            resolve(result);
+                        } catch (err) {
+                            console.error('Error fetching video info:', err);
+                            reject(err);
+                        }
+                    })();
+                });
+            } else if (/soundcloud\.com/.test(searchLink)) {
+                return new Promise((resolve, reject) => {
+                (async () => {
+                    try {
+                        searchLink = searchLink.split('?')[0];
+                        const searchSong = await soundCloudClient.getSongInfo(searchLink);
+                        const song = searchSong.title;
+                        const artist = searchSong.author.name;
+                        const result = await GeniusResult(song, artist);
+                        resolve(result);
+                    } catch (err) {
+                        console.error('Error fetching song info:', err);
+                        reject(err);
+                    }
+                })();
+                });
+            } else {
+                throw new Error('Unsupported URL');
+            }
         } else {
-            throw new Error('Unsupported URL');
+            console.log('Input is not a URL, proceeding with Genius search directly.');
+            if (synced == true) {
+                const result = await syncedSearch(song = searchLink, artist = null);
+                return result;
+            } else {
+                const result = await GeniusResult(song = searchLink);
+                return result;
+            }
+
         }
     } catch (error) {
         console.error('Error downloading:', error);
@@ -82,12 +92,10 @@ async function searchForLyrics(message, searchLink) {
 
 async function GeniusSearch(song, artist) {
     try {
-        // console.log('Input:', song, artist);
-        
-        // First, fetch song data from Genius API
+        const query = artist ? `${song} ${artist}` : song;
         const searchResponse = await axios.get('https://api.genius.com/search', {
             params: {
-                q: `${song} ${artist}`,
+                q: query,
             },
             headers: {
                 'Authorization': `Bearer ${process.env.GENIUS_TOKEN}`
@@ -160,7 +168,8 @@ async function GeniusSearch(song, artist) {
                     .replace(/&#x27;/g, "'")
                     .replace(/&#039;/g, "'")
                     .replace(/&#x2F;/g, "/")
-                    .replace(/&nbsp;/g, ' ');
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/^\d+\s+ContributorsTranslations\n?/g, ''); // Remove "237 ContributorsTranslations" or similar
                     
                     console.log('Extracted lyrics:', topResult.extractedLyrics);
                 } else {
@@ -208,6 +217,39 @@ async function GeniusSearch(song, artist) {
         let song = inputParts[1] || '';
         
         return { song, artist };
+    }
+}
+
+async function syncedSearch(song, artist) {
+    // use https://lrclib.net to get synced lyrics
+    try {
+        let response;
+        if (song && artist) {
+            const query = `track_name=${encodeURIComponent(song)}&artist_name=${encodeURIComponent(artist)}`;
+            response = await axios.get(`https://lrclib.net/api/get?${query}`);
+        } else {
+            const query = encodeURIComponent(song);
+            response = await axios.get(`https://lrclib.net/api/search?q=${query}`);
+        }
+        const data = response.data;
+        console.log('Synced search result:', data);
+        
+        if (data.success) {
+            return {
+                success: true,
+                lyrics: data.lyrics,
+                song: data.title,
+                artist: data.artist,
+                url: data.url,
+                image: data.image,
+            };
+        } else {
+            console.error('Error fetching synced lyrics:', data.error);
+            return { success: false };
+        }
+    } catch (error) {
+        console.error('Error fetching synced lyrics:', error);
+        return { success: false };
     }
 }
 
