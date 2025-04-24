@@ -15,6 +15,7 @@
     "@distube/ytpl": "^1.2.1",
     "axios": "^1.6.8",
     "btch-downloader": "^3.7.18",
+    "disconnect": "^1.2.2",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.5",
     "emoji-unicode": "^2.0.1",
@@ -29,12 +30,10 @@
     "node-id3": "^0.2.8",
     "node-zip": "^1.1.1",
     "path": "^0.12.7",
+    "pretty-seconds": "^3.0.1",
     "sharp": "^0.33.4",
     "soundcloud-scraper": "^5.0.3",
     "spotify-url-info": "^3.2.18",
-    "text-to-image": "^7.0.1",
-    "youtube-metadata-from-url": "^1.0.3",
-    "youtube-playlist": "^1.0.4",
-    "ytpl": "^2.3.0"
+    "text-to-image": "^7.0.1"
   }
 }

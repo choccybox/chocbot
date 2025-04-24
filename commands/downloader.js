@@ -5,6 +5,11 @@ const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
+const downloaderPlaylist = require('../backbone/ytPlaylistManager.js');
+const ytpl = require('@distube/ytpl');
+const prettySeconds = require('pretty-seconds');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const Discogs = require('disconnect').Client;
 
 module.exports = {
     run: async function handleMessage(message, client, isChained) {
@@ -33,6 +38,162 @@ module.exports = {
 
         if (!hasContent && !hasLinks) {
             return message.reply({ content: 'Please provide a valid link.' });
+        } else if (hasLinks && message.content.toLowerCase().includes('playlist')) {
+            // use ytpl to get info from the playlist such as amount of videos, their title thumbnail, etc.
+            const playlistLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
+            const playlist = await ytpl(playlistLink);
+            console.log(playlist);
+            // Build playlist info object (not repeated for each video)
+            // Helper to convert "hh:mm:ss" or "mm:ss" to seconds
+            function durationToSeconds(duration) {
+                if (!duration) return 0;
+                const parts = duration.split(':').map(Number);
+                if (parts.length === 3) {
+                    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                } else if (parts.length === 2) {
+                    return parts[0] * 60 + parts[1];
+                } else if (parts.length === 1) {
+                    return parts[0];
+                }
+                return 0;
+            }
+
+            // Import discogs client
+            const discogsClient = new Discogs({ userToken: process.env.DISCOGS_TOKEN });
+            let discogsData = {};
+
+            try {
+                // Search Discogs for the playlist title (remove "Album - " prefix)
+                const searchTitle = playlist.title.replace(/^Album - /, '').trim();
+                const discogsResult = await discogsClient.database().search(searchTitle, { type: 'release', per_page: 1 });
+                if (discogsResult.results && discogsResult.results.length > 0) {
+                    const release = discogsResult.results[0];
+                    discogsData = {
+                        artist: (release.artist || (playlist.items[0]?.author?.name ?? '')).replace(/ - Topic$/, ''),
+                        year: release.year || '',
+                        genre: release.genre ? (Array.isArray(release.genre) ? release.genre.join(', ') : release.genre) : '',
+                        cover_image: release.cover_image || playlist.thumbnail.url
+                    };
+                }
+            } catch (err) {
+                console.error('Discogs lookup failed:', err);
+                // fallback to playlist info only
+                discogsData = {
+                    artist: playlist.items[0]?.author?.name ?? '',
+                    year: '',
+                    label: '',
+                    genre: '',
+                    discogs_url: '',
+                    cover_image: playlist.thumbnail.url
+                };
+            }
+
+            const playlistInfo = {
+                title: playlist.title.replace(/^Album - /, ''),
+                thumbnail: discogsData.cover_image || playlist.thumbnail.url,
+                artist: discogsData.artist,
+                year: discogsData.year,
+                label: discogsData.label,
+                genre: discogsData.genre,
+                discogs_url: discogsData.discogs_url,
+                videos: playlist.items.map((video, idx) => ({
+                    title: video.title,
+                    number: idx + 1, // get number by getting video place in items
+                    id: video.id,
+                    thumbnail: video.thumbnail,
+                    duration: video.duration,
+                })),
+                total_duration: prettySeconds(
+                    playlist.items.reduce((sum, video) => sum + durationToSeconds(video.duration), 0)
+                )
+            };
+            // create folder and json file
+            const safeTitle = playlist.title.replace(/^Album - /, '').toLowerCase();
+            const folderPath = `temp/${safeTitle}`;
+            if (!fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            const tempFilePath = `${folderPath}/${safeTitle}.json`;
+            fs.writeFileSync(tempFilePath, JSON.stringify(playlistInfo, null, 2), 'utf8');
+
+            // Send playlist info and ask user to continue or cancel
+
+            const playlistEmbed = new EmbedBuilder()
+                .setTitle(`${playlistInfo.title}`)
+                .setDescription(`you're about to download a playlist with **${playlistInfo.videos.length}** videos\ntotal duration: **${playlistInfo.total_duration}**\n\n**do you want to continue?**\naudio quality is limited to **124kbps** and some data is gathered from discogs such as release year and cover art.`)
+                .setThumbnail(playlistInfo.thumbnail)
+                .setColor(0x00AE86);
+
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('continue_download')
+                        .setLabel('Continue')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('cancel_download')
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+            const infoMsg = await message.reply({ 
+                embeds: [playlistEmbed], 
+                components: [row] 
+            });
+
+            // Wait for button interaction
+            const filter = (i) => i.user.id === message.author.id;
+            try {
+                const interaction = await infoMsg.awaitMessageComponent({ filter, time: 60000 });
+                if (interaction.customId === 'cancel_download') {
+                    await interaction.update({ content: 'Download cancelled.', embeds: [], components: [] });
+                    // Clean up temp file and folder
+                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                    if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
+                    return;
+                }
+                await interaction.update({ content: `Starting download, this should take just a few mins, you'll be notified when it's done`, embeds: [], components: [] });
+            } catch (err) {
+                await infoMsg.edit({ content: 'No response. Download cancelled.', embeds: [], components: [] });
+                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
+                return;
+            }
+
+            // send json file to downloader.js
+            const response = await downloaderPlaylist.downloadPlaylist(message, tempFilePath, safeTitle).catch(error => {
+                console.error('Error sending URL to downloader.js:', error);
+                return { success: false };
+            });
+
+            if (!response.success) {
+                return message.reply({ content: `i wasn't able to download this video, this may be because the video is either age restricted or there is an issue somewhere else, i apologize for the mistake` });
+            }
+            console.log(response);
+            message.reactions.removeAll().catch(console.error);
+            
+            if (response.success) {
+                const fileName = `${playlistInfo.title}.zip`;
+                const filePath = `temp/${fileName}`;
+                if (fs.existsSync(filePath)) {
+                    const fileSize = fs.statSync(filePath).size;
+                    if (fileSize < 10 * 1024 * 1024) { // 10 MB
+                        await message.reply({ files: [{ attachment: filePath, name: fileName }] });
+                    } else {
+                        const encodedFileName = encodeURIComponent(fileName);
+                        const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                        await message.reply({ content: `File is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.` });
+                    }
+                    // delete files and folder after 5 minutes
+                    setTimeout(() => {
+                        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                        if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
+                    }, 300000); // 5 minutes
+                } else {
+                    await message.reply({ content: 'Zip file not found.' });
+                }
+            }
         } else {
             try {
                 const downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
@@ -58,6 +219,12 @@ module.exports = {
 
                 if (response.success) {
                     message.reactions.removeAll().catch(console.error);
+                    // delete message
+                    const deleteMessage = await message.channel.messages.fetch(message.id).catch(console.error);
+                    if (deleteMessage) {
+                        await deleteMessage.delete().catch(console.error);
+                    }
+                    // check if file exists in temp folder
                     const findFile = (baseName) => {
                         const files = fs.readdirSync('./temp/');
                         return files.find(file => file.startsWith(baseName));
