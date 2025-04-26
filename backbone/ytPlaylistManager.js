@@ -43,7 +43,8 @@ async function downloadPlaylist(message, tempFilePath, safeTitle) {
                     album: playlistInfo.title,
                     year: playlistInfo.year,
                     genre: playlistInfo.genre,
-                    TRCK: video.number
+                    TRCK: video.number,
+                    TPE2: playlistInfo.artist
                     };
 
                     // Try to add front cover if available

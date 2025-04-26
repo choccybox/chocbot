@@ -3,6 +3,7 @@ const quickdesc = 'Downloads a video/audio from social platforms (YouTube, Twitt
 
 const dotenv = require('dotenv');
 dotenv.config();
+
 const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
 const downloaderPlaylist = require('../backbone/ytPlaylistManager.js');
@@ -38,7 +39,11 @@ module.exports = {
 
         if (!hasContent && !hasLinks) {
             return message.reply({ content: 'Please provide a valid link.' });
-        } else if (hasLinks && message.content.toLowerCase().includes('playlist')) {
+        } else if (
+            hasLinks &&
+            message.content.toLowerCase().includes('playlist') &&
+            /(youtube\.com|youtu\.be)/i.test(message.content)
+        ) {
             // use ytpl to get info from the playlist such as amount of videos, their title thumbnail, etc.
             const playlistLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
             const playlist = await ytpl(playlistLink);
@@ -218,12 +223,8 @@ module.exports = {
                 console.log(response);
 
                 if (response.success) {
+                    console.log('Download successful:', response);
                     message.reactions.removeAll().catch(console.error);
-                    // delete message
-                    const deleteMessage = await message.channel.messages.fetch(message.id).catch(console.error);
-                    if (deleteMessage) {
-                        await deleteMessage.delete().catch(console.error);
-                    }
                     // check if file exists in temp folder
                     const findFile = (baseName) => {
                         const files = fs.readdirSync('./temp/');
