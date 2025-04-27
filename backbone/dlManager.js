@@ -2,14 +2,16 @@ const axios = require('axios');
 const fs = require('fs');
 const { twitter, igdl, ttdl } = require('btch-downloader');
 const ffmpeg = require('fluent-ffmpeg');
-const https = require('https');
-const { spawn } = require('child_process');
 const SoundCloud = require("soundcloud-scraper");
 const NodeID3 = require('node-id3');
 const path = require('path');
-const { off } = require('process');
-const Discogs = require('disconnect').Client;
 const client = new SoundCloud.Client();
+const Spotify = require('@zaptyp/spotifydl-core').default
+const SpotCreds = {
+    clientId: process.env.SPOTIFY_CLIENT_ID,
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+}
+const spotify = new Spotify(SpotCreds)
 
 async function downloadYoutube(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
@@ -138,12 +140,9 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                 title: searchTitle,
                 artist: searchArtist,
                 album: '',
-                performerInfo: '',
-                composer: '',
                 year: '',
                 trackNumber: '',
                 genre: '',
-                publisher: '',
                 APIC: undefined,
                 TRCK: undefined
             };
@@ -277,6 +276,144 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                     videoTitle: searchTitle || fileName,
                     isUnder10MB: song.size < 10 * 1024 * 1024 // Check if the file is under 10 MB
                 });
+            });
+
+            writer.on("error", (err) => {
+                console.error('Write error:', err.message);
+                reject(err);
+            });
+
+        } catch (err) {
+            console.error('Download error:', err.message);
+            reject(err);
+        }
+    });
+}
+
+async function downloadSpotify(message, downloadLink, randomName, rnd5dig, identifierName, useIdentifier) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            console.log('Downloading from Spotify:', downloadLink);
+            const song = await spotify.getTrack(downloadLink);
+            console.log('song:', song);
+
+            let tags = {
+                title: song.name || '',
+                artist: Array.isArray(song.artists) && song.artists.length > 0 ? song.artists[0] : '',
+                album_artist: Array.isArray(song.artists) && song.artists.length > 0 ? song.artists[0] : '',
+                album: song.album_name || '',
+                year: song.release_date.split('-')[0] || '',
+                trackNumber: '',
+                APIC: undefined,
+                TRCK: undefined
+            };
+
+            // Query MusicBrainz for metadata
+            let mbData = {};
+            try {
+                // Search MusicBrainz for the song title and artist
+                console.log('Searching MusicBrainz for:', tags.title, tags.artist);
+                const mbSearchUrl = `https://musicbrainz.org/ws/2/recording/?query=recording:"${encodeURIComponent(tags.title)}"%20AND%20artist:"${encodeURIComponent(tags.artist)}"&fmt=json&limit=1`;
+                const mbResponse = await axios.get(mbSearchUrl, { headers: { 'User-Agent': 'chocbot/1.0 ( https://github.com/choccybox/chocbot )' } });
+                const recordings = mbResponse.data.recordings;
+                /* console.log('MusicBrainz response:', mbResponse.data.recordings[0].releases); */
+                if (recordings && recordings.length > 0) {
+                    const rec = recordings[0];
+                    mbData = {
+                        TRCK: rec.releases && rec.releases.length > 0 && rec.releases[0].media && rec.releases[0].media[0]['track-offset'] ? rec.releases[0].media[0]['track-offset'] : ''
+                    };
+                    console.log('MusicBrainz data:', mbData);
+                } else {
+                    mbFailed = true;
+                }
+            } catch (err) {
+                console.error('MusicBrainz lookup failed:', err);
+                mbFailed = true;
+            }
+
+            // Fill tags from MusicBrainz if available
+            tags.artist = tags.artist;
+            tags.TPE2 = tags.album_artist;
+            tags.year = tags.year;
+            tags.album = tags.album;
+            tags.TRCK = mbData.TRCK;
+
+            const fileName = useIdentifier
+                ? `temp/${randomName}-${identifierName}-${rnd5dig}.mp3`
+                : `temp/${song.name}.mp3`;
+
+            // Download the song as a buffer
+            const songBuffer = await spotify.downloadTrack(downloadLink, tags.name);
+
+            fs.writeFileSync(fileName, songBuffer);
+
+            // Download and crop album art if available
+            const coverUrl = song.cover_url;
+            if (coverUrl) {
+                try {
+                    // Download the cover image
+                    const response = await axios.get(coverUrl, { responseType: 'arraybuffer' });
+                    const safeTitle = (tags.title || 'cover').replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32) || 'cover';
+                    const coverPath = path.join('temp', `${safeTitle}_cover.jpg`);
+                    fs.writeFileSync(coverPath, response.data);
+
+                    // Get image dimensions using ffmpeg
+                    const getImageDimensions = (filePath) => {
+                        return new Promise((resolve, reject) => {
+                            ffmpeg.ffprobe(filePath, (err, metadata) => {
+                                if (err) return reject(err);
+                                const { width, height } = metadata.streams[0];
+                                resolve({ width, height });
+                            });
+                        });
+                    };
+
+                    const dimensions = await getImageDimensions(coverPath);
+                    const size = Math.min(dimensions.width, dimensions.height);
+                    const croppedCoverPath = path.join('temp', `${safeTitle}_cover_cropped.jpg`);
+
+                    // Crop the image into a square using ffmpeg
+                    await new Promise((res, rej) => {
+                        ffmpeg(coverPath)
+                            .outputOptions([`-vf crop=${size}:${size}`])
+                            .on('end', res)
+                            .on('error', rej)
+                            .save(croppedCoverPath);
+                    });
+
+                    // Read cropped image as buffer
+                    const imageBuffer = fs.readFileSync(croppedCoverPath);
+
+                    tags.APIC = {
+                        mime: 'image/jpeg',
+                        type: {
+                            id: 3,
+                            name: 'front cover'
+                        },
+                        description: 'Cover',
+                        imageBuffer
+                    };
+
+                    // Clean up cover images after tagging
+                    fs.unlinkSync(coverPath);
+                    fs.unlinkSync(croppedCoverPath);
+                } catch (e) {
+                    console.warn('Could not download or crop cover art:', e.message);
+                }
+            }
+
+            // Write tags
+            try {
+                NodeID3.write(tags, fileName);
+                console.log('ID3 tags written');
+            } catch (e) {
+                console.warn('Failed to write ID3 tags:', e.message);
+            }
+
+            resolve({
+                success: true,
+                videoTitle: song.name || fileName,
+                isUnder10MB: song.size < 10 * 1024 * 1024 // Check if the file is under 10 MB
             });
 
             writer.on("error", (err) => {
@@ -478,6 +615,10 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
             // sanitize link to remove everything after the first ?
             const sanitizedLink = downloadLink.split('?')[0];
             const result = await downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, identifierName, useIdentifier);
+            return { success: true, title: result.videoTitle };
+        } else if (/spotify\.com/.test(downloadLink)) {
+            message.react('🔽').catch()
+            const result = await downloadSpotify(message, downloadLink, randomName, rnd5dig, identifierName);
             return { success: true, title: result.videoTitle };
         } else {
             throw new Error('Unsupported URL');

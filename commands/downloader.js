@@ -1,5 +1,5 @@
 const altnames = ['download', 'down', 'dl'];
-const quickdesc = 'Downloads a video/audio from social platforms (YouTube, Twitter, Instagram)';
+const quickdesc = 'Download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)';
 
 const dotenv = require('dotenv');
 dotenv.config();

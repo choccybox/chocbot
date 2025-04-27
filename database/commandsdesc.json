@@ -11,7 +11,7 @@
     ]
   },
   "downloader": {
-    "quickdescript": "Downloads a video/audio from social platforms (YouTube, Twitter, Instagram)",
+    "quickdescript": "Download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)",
     "altnames": [
       "download",
       "down",
