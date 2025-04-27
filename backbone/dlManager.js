@@ -6,12 +6,16 @@ const SoundCloud = require("soundcloud-scraper");
 const NodeID3 = require('node-id3');
 const path = require('path');
 const client = new SoundCloud.Client();
-const Spotify = require('@zaptyp/spotifydl-core').default
-const SpotCreds = {
-    clientId: process.env.SPOTIFY_CLIENT_ID,
-    clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+let spotify;
+async function initSpotify() {
+    const { default: Spotify } = await import('@zaptyp/spotifydl-core');
+    const SpotCreds = {
+        clientId: process.env.SPOTIFY_CLIENT_ID,
+        clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+    };
+    spotify = new Spotify(SpotCreds);
 }
-const spotify = new Spotify(SpotCreds)
+initSpotify();
 
 async function downloadYoutube(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
