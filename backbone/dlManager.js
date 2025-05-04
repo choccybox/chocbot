@@ -5,6 +5,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const SoundCloud = require("soundcloud-scraper");
 const NodeID3 = require('node-id3');
 const path = require('path');
+const sanitize = require('sanitize-filename');
 const client = new SoundCloud.Client();
 let spotify;
 async function initSpotify() {
@@ -17,112 +18,137 @@ async function initSpotify() {
 }
 initSpotify();
 
-async function downloadYoutube(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, isMusic, useIdentifier) {
+async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, identifierName, convertArg, _isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
         try {
-            console.log('Downloading from YouTube:', downloadLink);
-            console.log('Convert argument:', convertArg);
-            // Set download mode based on convertArg or if it's from music.youtube
-            const downloadMode = (convertArg || isMusic) ? 'audio' : 'auto';
+            console.log('Downloading from YouTube using oceansaver API:', downloadLink);
             
-            // Make POST request to Cobalt API
-            const response = await axios({
-                method: 'POST',
-                url: 'https://ytapi.chocbox.org/',
-                data: {
-                    url: downloadLink,
-                    videoQuality: '1080',
-                    audioFormat: 'mp3',
-                    filenameStyle: 'basic',
-                    downloadMode: downloadMode,
-                    youtubeDubLang: 'en',
-                    youtubeVideoCodec: 'h264'
-                },
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+            // Make initial API call with retry logic
+            let response;
+            let retries = 3;
+            while (retries > 0) {
+                try {
+                    // Choose format based on convertArg
+                    const format = convertArg ? 'mp3' : '1080';
+                    response = await axios.get(`https://p.oceansaver.in/ajax/download.php?format=${format}&url=${downloadLink}`, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'application/json, text/plain, */*',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Origin': 'https://p.oceansaver.in',
+                            'Referer': 'https://p.oceansaver.in/',
+                            'Sec-Fetch-Dest': 'empty',
+                            'Sec-Fetch-Mode': 'cors',
+                            'Sec-Fetch-Site': 'same-origin',
+                            'Connection': 'keep-alive'
+                        }
+                    });
+                    break;
+                } catch (error) {
+                    if (error.response && error.response.status === 400 && retries > 1) {
+                        console.log('Received 400 error, retrying in 3s...');
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        retries--;
+                        continue;
+                    }
+                    throw error;
                 }
-            });
-            
-            // Check for valid response
-            if (!response.data || !response.data.status) {
-                throw new Error('Invalid response from Cobalt API');
             }
-            
-            // Handle different response types
-            let downloadURL, filename;
-            
-            if (response.data.status === 'redirect' || response.data.status === 'tunnel') {
-                downloadURL = response.data.url;
-                filename = response.data.filename;
-                console.log(`Got ${response.data.status} response with filename: ${filename}`);
-            } 
-            else if (response.data.status === 'picker' && response.data.picker?.length > 0) {
-                downloadURL = response.data.picker[0].url;
-                console.log('Using first item from picker response');
-            }
-            else if (response.data.status === 'error') {
-                throw new Error(`API error: ${response.data.error?.code || 'unknown'}`);
-            }
-            else {
-                throw new Error(`Unexpected response status: ${response.data.status}`);
-            }
-            
-            if (!downloadURL) {
-                throw new Error('No download URL found in response');
-            }
-            
-            // Sanitize filename
-            const sanitizedTitle = filename
-                .replace(/\(\s*\d{3,4}\s*,\s*h\d{3,4}\s*\)/gi, '') // Remove (1080, h264) or (720, h265)
-                .replace(/[^a-zA-Z0-9 \-_.]/g, '') // Remove non-English, hashtags, exclamation marks, etc.
-                .replace(/\.mp[34]$/i, '') // Remove .mp3 or .mp4 extension at end
-                .trim()
-                .split(' ').slice(0, 8).join(' ') // Keep only first 8 words
-                .toLowerCase()
-                .slice(0, 200);
 
-            // Always use mp4 extension since we're always downloading videos
-            const fileExt = (convertArg || isMusic) ? 'mp3' : 'mp4';
-            const outputFile = `temp/${sanitizedTitle}.${fileExt}`;
+            console.log('Initial API response:', response.data);
 
-            // Create temp directory if needed
-            fs.mkdirSync('temp', { recursive: true });
+            // Poll progress URL until download is ready
+            const progressUrl = response.data.progress_url;
+            const title = sanitize((response.data.title || `${randomName}_YT_${rnd5dig}`), {
+                replacement: '_'
+            })
+            .replace(/[^\w\s-]/g, '')
+            .replace(/\s+/g, '_')
+            .toLowerCase()
+            .trim()
+            .slice(0, 200);
+            let downloadUrl = null;
 
-            // Download the file
-            console.log(`Downloading to ${outputFile}`);
-            const fileResponse = await axios({
-                method: 'get',
-                url: downloadURL,
-                responseType: 'stream'
-            });
-            
-            // Write to file
-            const writer = fs.createWriteStream(outputFile);
+            while (!downloadUrl) {
+                let progressResponse;
+                retries = 3;
+                while (retries > 0) {
+                    try {
+                        progressResponse = await axios.get(progressUrl, {
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                'Accept': 'application/json, text/plain, */*',
+                                'Accept-Language': 'en-US,en;q=0.9',
+                                'Accept-Encoding': 'gzip, deflate, br',
+                                'Origin': 'https://p.oceansaver.in',
+                                'Referer': 'https://p.oceansaver.in/',
+                                'Sec-Fetch-Dest': 'empty',
+                                'Sec-Fetch-Mode': 'cors',
+                                'Sec-Fetch-Site': 'same-origin',
+                                'Connection': 'keep-alive'
+                            }
+                        });
+                        break;
+                    } catch (error) {
+                        if (error.response && error.response.status === 400 && retries > 1) {
+                            console.log('Received 400 error during progress check, retrying in 3s...');
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                            retries--;
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
+
+                if (progressResponse.data.success === 1 && progressResponse.data.progress === 1000) {
+                    downloadUrl = progressResponse.data.download_url;
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            // Download the file with retry logic
+            let fileResponse;
+            retries = 3;
+            while (retries > 0) {
+                try {
+                    fileResponse = await axios({
+                        method: 'get',
+                        url: downloadUrl,
+                        responseType: 'stream'
+                    });
+                    break;
+                } catch (error) {
+                    if (error.response && error.response.status === 400 && retries > 1) {
+                        console.log('Received 400 error during file download, retrying in 3s...');
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        retries--;
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+
+            const extension = convertArg ? 'mp3' : 'mp4';
+            const fileName = useIdentifier 
+                ? `temp/${randomName}-${identifierName}-${rnd5dig}.${extension}`
+                : `temp/${title}.${extension}`;
+
+            const writer = fs.createWriteStream(fileName);
             fileResponse.data.pipe(writer);
-            
-            await new Promise((resolveDownload, rejectDownload) => {
-                writer.on('finish', resolveDownload);
-                writer.on('error', rejectDownload);
+
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
             });
-            
-            console.log('Download complete');
 
-            console.log('using identifier:', useIdentifier);
-
-            // if useIdentifier is true, rename the file
-            if (useIdentifier) {
-                const newFileName = `temp/${randomName}-${identifierName}-${rnd5dig}.${fileExt}`;
-                fs.renameSync(outputFile, newFileName);
-                console.log(`Renamed file to ${newFileName}`);
-            }
-            
             resolve({
                 success: true,
-                filename: outputFile,
-                videoTitle: sanitizedTitle
+                filename: fileName,
+                videoTitle: title,
             });
-            
+
         } catch (err) {
             console.error('Download error:', err.message);
             reject(err);

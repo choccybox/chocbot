@@ -25,31 +25,42 @@ const client = new Client({
 const commandsList = require('./database/commands.json');
 
 client.on('messageCreate', async (message) => {
-  if (message.mentions.has(client.user)) {
-    const messageWords = message.content.split(/[\s,]+/);
+  const prefix = process.env.PREFIX;
+  const botMention = `<@${client.user.id}>`;
+
+  if (message.content.startsWith(prefix) || message.content.startsWith(botMention) || message.mentions.has(client.user)) {
+    const contentWithoutPrefix = message.content.startsWith(prefix)
+      ? message.content.slice(prefix.length).trim()
+      : message.content.startsWith(botMention)
+      ? message.content.slice(botMention.length).trim()
+      : message.content;
+
+    const messageWords = contentWithoutPrefix.split(/[\s,]+/);
     const commandWords = messageWords.filter(word => commandsList[word.split(':')[0]]);
     const uniqueCommands = [...new Set(commandWords.map(word => word.split(':')[0]))];
     let currentAttachments = message.attachments.size > 0 ? message.attachments : null;
 
+    // Check for attachments in the current message or in a replied message
     if (!currentAttachments && message.reference) {
+      try {
       const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
       currentAttachments = repliedMessage.attachments.size > 0 ? repliedMessage.attachments : null;
-    } /* else if (!currentAttachments && message.content.includes('youtube')) {
-      const youtubeLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
-      currentAttachments = new Collection();
-      currentAttachments.set('youtube', { url: youtubeLink }); */
-     else if (!currentAttachments && message.content.includes('pukeko')) {
+      console.log(`Found ${repliedMessage.attachments.size} attachments in replied message`);
+      } catch (error) {
+      console.error("Failed to fetch replied message:", error);
+      }
+    } else if (!currentAttachments && contentWithoutPrefix.includes('pukeko')) {
       message.reply({ files: [{ attachment: path.join(__dirname, 'images', 'pukeko.jpg') }] });
       return;
-    } else if (!currentAttachments && message.content.trim() === `<@${client.user.id}> help`) {
+    } else if (!currentAttachments && contentWithoutPrefix === 'help') {
       // get the file commandsdesc.json and format it correctly into this order: command, quickdesc, altnames
       const commandsDesc = require('./database/commandsdesc.json');
       const formattedCommands = Object.keys(commandsDesc).map(command => {
-        return `**${command}:** ${commandsDesc[command].quickdescript}\n**Aliases:** \`${commandsDesc[command].altnames.join(', ')}\``;
+      return `**${command}:** ${commandsDesc[command].quickdescript}\n**aliases:** \`${commandsDesc[command].altnames.join(', ')}\``;
       });
       const formattedCommandsString = formattedCommands.join('\n\n');
       message.reply({ content: `${formattedCommandsString}` });
-    } else if (!currentAttachments && message.content.trim() === `<@${client.user.id}>`) {
+    } else if (!currentAttachments && contentWithoutPrefix === '') {
       message.reply({ content: 'Please provide an audio or video file to process.' });
       return;
     }
@@ -148,35 +159,25 @@ fs.writeFileSync('./database/commands.json', JSON.stringify(commands, null, 2));
 fs.writeFileSync('./database/commandsdesc.json', JSON.stringify(quickdesc, null, 2));
 
 client.once('ready', async () => {
-  const dirsToClean = ['./temp', './temp/thumbnails'];
+  const tempDir = path.join(__dirname, 'temp');
 
-  // Function to clean a directory
+  // Function to recursively delete files and folders
   const cleanDirectory = (dir) => {
-    // Check if directory exists, create if not
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
-      return;
+    if (fs.existsSync(dir)) {
+      fs.readdirSync(dir).forEach((file) => {
+        const filePath = path.join(dir, file);
+        if (fs.lstatSync(filePath).isDirectory()) {
+          cleanDirectory(filePath); // Recursively clean subdirectories
+          fs.rmdirSync(filePath); // Remove the empty folder
+        } else {
+          fs.unlinkSync(filePath); // Remove the file
+        }
+      });
     }
-
-    // Clear all files in directory
-    fs.readdir(dir, (err, files) => {
-      if (err) {
-        console.error(`Error reading ${dir} directory:`, err);
-        return;
-      }
-
-      for (const file of files) {
-        fs.unlink(path.join(dir, file), err => {
-          if (err) {
-            console.error(`Error deleting file from ${dir}:`, err);
-          }
-        });
-      }
-    });
   };
 
-  // Clean each directory
-  dirsToClean.forEach(cleanDirectory);
+  // Clean the temp directory
+  cleanDirectory(tempDir);
 
   console.log(`wake yo ass up bc it's time to go beast mode`);
 });

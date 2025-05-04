@@ -30,12 +30,15 @@
     "mime-types": "^3.0.1",
     "node-fetch": "^3.3.2",
     "node-id3": "^0.2.8",
+    "node-yt-dl": "^2.2.5",
     "node-zip": "^1.1.1",
     "path": "^0.12.7",
     "pretty-seconds": "^3.0.1",
+    "sanitize-filename": "^1.6.3",
     "sharp": "^0.33.4",
     "soundcloud-scraper": "^5.0.3",
     "spotify-url-info": "^3.2.18",
-    "text-to-image": "^7.0.1"
+    "text-to-image": "^7.0.1",
+    "ytdl-core": "^4.11.5"
   }
 }

@@ -1,5 +1,5 @@
 const altnames = ['download', 'down', 'dl'];
-const quickdesc = 'Download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)';
+const quickdesc = 'download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)';
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -18,9 +18,9 @@ module.exports = {
             const commandUsed = message.content.split(' ').find(part => part !== 'help' && !part.startsWith('<@'));
             return message.reply({
                 content: `${quickdesc}\n` +
-                    `### Example:\n\`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +
-                    `### Audio Only:\n\`${commandUsed}:audio https://www.youtube.com/watch?v=dQw4w9WgXcQ\` \`${commandUsed}:aud https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +
-                    `### Aliases:\n\`${altnames.join(', ')}\`\n`,
+                    `### modifiers: \`audio/aud (audio only)\`\n` +
+                    `### example: \`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\`, \`${commandUsed}:aud https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +
+                    `### aliases:\n\`${altnames.join(', ')}\`\n`,
             });
         }
         // Extract the command and its arguments
@@ -44,7 +44,9 @@ module.exports = {
             message.content.toLowerCase().includes('playlist') &&
             /(youtube\.com|youtu\.be)/i.test(message.content)
         ) {
-            // use ytpl to get info from the playlist such as amount of videos, their title thumbnail, etc.
+            return message.reply({ content: 'playlist support is not available yet.' });
+            
+           /*  // use ytpl to get info from the playlist such as amount of videos, their title thumbnail, etc.
             const playlistLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
             const playlist = await ytpl(playlistLink);
             console.log(playlist);
@@ -198,7 +200,7 @@ module.exports = {
                 } else {
                     await message.reply({ content: 'Zip file not found.' });
                 }
-            }
+            } */
         } else {
             try {
                 const downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
@@ -248,7 +250,7 @@ module.exports = {
                         const fileData = fs.readFileSync(filePath);
                         await message.reply({ files: [{ attachment: fileData, name: filePath.split('/').pop() }] });
                     } else {
-                        const encodedFileName = encodeURIComponent(`${fileName}.${convertArg ? 'mp3' : 'mp4'}`);
+                        const encodedFileName = encodeURIComponent(`${fileName}.${convertArg ? 'mp3' : 'mp4'}`).replace(/%20/g, ' ');
                         const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
                         await message.reply({ content: `File is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.` });
                     }

@@ -17,6 +17,12 @@
   "stt": {
     "file": "audioanalyze.js"
   },
+  "convert": {
+    "file": "convert.js"
+  },
+  "conv": {
+    "file": "convert.js"
+  },
   "download": {
     "file": "downloader.js"
   },
@@ -25,6 +31,12 @@
   },
   "dl": {
     "file": "downloader.js"
+  },
+  "freaky": {
+    "file": "freakyfont.js"
+  },
+  "freak": {
+    "file": "freakyfont.js"
   },
   "lyrics": {
     "file": "lyricfinder.js"
@@ -55,50 +67,5 @@
   },
   "rdj": {
     "file": "riodejaneiro.js"
-  },
-  "toaudio": {
-    "file": "toaudio.js"
-  },
-  "2audio": {
-    "file": "toaudio.js"
-  },
-  "toaud": {
-    "file": "toaudio.js"
-  },
-  "2aud": {
-    "file": "toaudio.js"
-  },
-  "togif": {
-    "file": "togif.js"
-  },
-  "gif": {
-    "file": "togif.js"
-  },
-  "2gif": {
-    "file": "togif.js"
-  },
-  "toimage": {
-    "file": "toimage.js"
-  },
-  "toimg": {
-    "file": "toimage.js"
-  },
-  "2img": {
-    "file": "toimage.js"
-  },
-  "2image": {
-    "file": "toimage.js"
-  },
-  "tovideo": {
-    "file": "tovideo.js"
-  },
-  "2video": {
-    "file": "tovideo.js"
-  },
-  "tovid": {
-    "file": "tovideo.js"
-  },
-  "2vid": {
-    "file": "tovideo.js"
   }
 }

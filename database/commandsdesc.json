@@ -1,6 +1,6 @@
 {
   "audioanalyze": {
-    "quickdescript": "Transcribes audio/video to text, supports audio/video and links (youtube, twitter, instagram)",
+    "quickdescript": "transcribe audio/video/links to text",
     "altnames": [
       "audio",
       "aa",
@@ -10,12 +10,26 @@
       "stt"
     ]
   },
+  "convert": {
+    "quickdescript": "converts a file to different format based on uploaded file type or specified in the command.",
+    "altnames": [
+      "convert",
+      "conv"
+    ]
+  },
   "downloader": {
-    "quickdescript": "Download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)",
+    "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)",
     "altnames": [
       "download",
       "down",
       "dl"
+    ]
+  },
+  "freakyfont": {
+    "quickdescript": "makes your text 𝓯𝓻𝓮𝓪𝓴𝔂",
+    "altnames": [
+      "freaky",
+      "freak"
     ]
   },
   "lyricfinder": {
@@ -36,41 +50,6 @@
       "riodejaneiro",
       "rjd",
       "rdj"
-    ]
-  },
-  "toaudio": {
-    "quickdescript": "Converts a video or other audio files to a mp3",
-    "altnames": [
-      "toaudio",
-      "2audio",
-      "toaud",
-      "2aud"
-    ]
-  },
-  "togif": {
-    "quickdescript": "Converts a video/image to a gif",
-    "altnames": [
-      "togif",
-      "gif",
-      "2gif"
-    ]
-  },
-  "toimage": {
-    "quickdescript": "Converts all video frames/first frame to image/s",
-    "altnames": [
-      "toimage",
-      "toimg",
-      "2img",
-      "2image"
-    ]
-  },
-  "tovideo": {
-    "quickdescript": "Converts a gif to a video",
-    "altnames": [
-      "tovideo",
-      "2video",
-      "tovid",
-      "2vid"
     ]
   }
 }

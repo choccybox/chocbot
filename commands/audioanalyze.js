@@ -1,11 +1,12 @@
 const altnames = ['audio', 'aa', 'audioanalyze', 'speech2text', 's2t', 'stt'];
-const quickdesc = 'Transcribes audio/video to text, supports audio/video and links (youtube, twitter, instagram)';
+const quickdesc = 'transcribe audio/video/links to text';
 
 const dotenv = require('dotenv');
 dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
+const path = require('path');
 const downloader = require('../backbone/dlManager.js');
 
 module.exports = {
@@ -38,24 +39,24 @@ module.exports = {
             const downloadFile = await axios.get(fileUrl, { responseType: 'arraybuffer' });
             const fileData = downloadFile.data;
             const fileExtension = contentType === 'mpeg' ? 'mp3' : contentType;
-            const fileName = firstAttachment.name;
-            await fs.writeFileSync(`temp/${randomName}-S2T-${rnd5dig}.${fileExtension}`, fileData);
+            const filePath = `temp/${randomName}-S2T-${rnd5dig}.${fileExtension}`;
+            const filePathConverted = `temp/${randomName}-S2T-${rnd5dig}.mp3`;
+            await fs.writeFileSync(filePath, fileData);
         
             try {
                 if (firstAttachment.contentType.startsWith('video/') && contentType !== 'mp3') {
                     await new Promise((resolve, reject) => {
-                        ffmpeg(`temp/${randomName}-S2T-${rnd5dig}.${contentType}`)
+                        ffmpeg(filePath)
                             .toFormat('mp3')
                             .on('end', resolve)
                             .on('error', reject)
-                            .save(`temp/${randomName}-S2T-${rnd5dig}.mp3`);
+                            .save(filePathConverted);
                     });
                 }
-
-                const audioData = fs.readFileSync(`temp/${randomName}-S2T-${rnd5dig}.${contentType === 'mp3' ? 'mp3' : 'mp3'}`);
+                const audioData = fs.readFileSync(filePathConverted);
                 message.reactions.removeAll().catch(console.error);
                 message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
-                await processAudio(audioData.toString('base64'), message, randomName, fileName, rnd5dig);
+                await processAudio(audioData.toString('base64'), message, randomName, rnd5dig);
                 message.reactions.removeAll().catch(console.error);
 
             } catch (error) {
@@ -79,15 +80,21 @@ module.exports = {
                 });
 
                 if (response.success) {
-                    const audioData = fs.readFileSync(`temp/${randomName}-S2T-${rnd5dig}.mp3`);
+                    const filePathConverted = `temp/${randomName}-S2T-${rnd5dig}.mp3`;
+                    if (!fs.existsSync(filePathConverted)) {
+                        message.reply({ content: 'Audio file not found after download/conversion.' });
+                        return;
+                    }
+                    const audioData = fs.readFileSync(filePathConverted);
+                    const base64Audio = audioData.toString('base64');
                     message.reactions.removeAll().catch(console.error);
                     message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
-                    await processAudio(audioData.toString('base64'), message, randomName, rnd5dig);
+                    await processAudio(base64Audio, message, randomName, rnd5dig);
                     message.reactions.removeAll().catch(console.error);
                 } else {
                     message.reactions.removeAll().catch(console.error);
                     message.reply({ content: response.message });
-                }
+                } 
             } catch (error) {
                 console.error('Error sending URL to downloader.js:', error);
                 message.reply({ content: 'Error sending URL to downloader.js.' });
@@ -100,7 +107,7 @@ module.exports = {
 async function processAudio(base64Audio, message, randomName, rnd5dig) {
     try {
         // console.log('using model:', abrmodelstomodelnames[model]);
-        const deepInfraPrediction = await axios.post('https://api.deepinfra.com/v1/inference/distil-whisper/distil-large-v3', {
+        const deepInfraPrediction = await axios.post('https://api.deepinfra.com/v1/inference/openai/whisper-large-v3-turbo', {
             audio: base64Audio,
             authorization: process.env.DEEPINFRA_TOKEN,
         });
@@ -119,16 +126,21 @@ async function processAudio(base64Audio, message, randomName, rnd5dig) {
         }
     } catch (error) {
         console.error(error);
-        return message.reply({ content: 'the model fucking gave up dawg, try again ig' });
+        return message.reply({ content: `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**` });
     } finally {
-        // delete all files including S2T in the name, only target mp3, mp4 and txt files, wait 30s before deleting
-        const filesToDelete = fs.readdirSync('./temp/').filter((file) => {
-            return file.includes('S2T');
-        });
-        filesToDelete.forEach((file) => {
-            setTimeout(() => {
-            fs.unlinkSync(`./temp/${file}`);
-            }, 5000);
+        // Search for all files matching the pattern and clean them up
+        const tempDir = './temp';
+        const pattern = new RegExp(`${randomName}-S2T-\\d+`);
+        
+        fs.readdirSync(tempDir).forEach(file => {
+            if (pattern.test(file)) {
+                try {
+                    fs.unlinkSync(path.join(tempDir, file));
+                    console.log(`Cleaned up file: ${file}`);
+                } catch (err) {
+                    console.error(`Error deleting file ${file}:`, err);
+                }
+            }
         });
     }
 }
