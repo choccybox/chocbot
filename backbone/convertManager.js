@@ -120,9 +120,22 @@ async function convertFile(filePath, outputFilePath, conversionFormat) {
         }
 
         const command = ffmpeg(filePath)
-            .toFormat(settings.format)
-            .outputOptions('-vcodec', settings.codec)
-            .outputOptions(settings.options);
+            .toFormat(settings.format);
+            
+        // Handle image formats differently based on input/output
+        const fileExt = path.extname(filePath).toLowerCase().slice(1);
+        if (fileExt === 'gif' && ['png', 'jpg', 'jpeg'].includes(conversionFormat.toLowerCase())) {
+            // Extract first frame from GIF for static image formats
+            command.outputOptions(['-vframes', '1']);
+        } else {
+            // For other conversions, use the specified codec
+            if (settings.codec) {
+                command.outputOptions(['-c:v', settings.codec]);
+            }
+            if (settings.options && settings.options.length > 0) {
+                command.outputOptions(settings.options);
+            }
+        }
 
         command
             .on('end', async () => {
