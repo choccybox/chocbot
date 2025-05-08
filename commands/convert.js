@@ -12,7 +12,8 @@ const conversionDecider = require('../backbone/convertManager.js');
 module.exports = {
     run: async function handleMessage(message, client, currentAttachments, isChained) {
         if (message.content.includes('help')) {
-            const commandUsed = altnames.find(alias => message.content.includes(alias)) || 'convert';
+            const commandParts = message.content.trim().split(' ');
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
                     `### requirements: attachment\n` +

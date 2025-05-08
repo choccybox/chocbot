@@ -1,6 +1,6 @@
 {
   "audioanalyze": {
-    "quickdescript": "transcribe audio/video/links to text",
+    "quickdescript": "transcribe audio/video/links to text using openai whisper model",
     "altnames": [
       "audio",
       "aa",
@@ -18,7 +18,7 @@
     ]
   },
   "downloader": {
-    "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)",
+    "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)\\n\\n*Spotify may not result with a correct song if its not found on youtube, if that happens, try finding it on youtube and send the link instead.*",
     "altnames": [
       "download",
       "down",

@@ -10,8 +10,8 @@ const ffmpeg = require('fluent-ffmpeg');
 module.exports = {
     run: async function handleMessage(message, client, currentAttachments, isChained) {
         if (message.content.includes('help')) {
-            // console the message content and use the command that user used in the content
-            const commandUsed = message.content.split(' ').find(part => part !== 'help' && !part.startsWith('<@'));
+            const commandParts = message.content.trim().split(' ');
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
                     `### Arguments:\n`+
@@ -40,26 +40,35 @@ module.exports = {
         let customText = 'Rio De Janeiro'; // Default text
         let useText = true;
 
-        if (args.length > 1 && args[1].includes(':')) {
-            const parts = message.content.split(':');
-            if (parts.includes('notext')) {
+        // Parse command arguments
+        if (message.content.includes(':')) {
+            const commandContent = message.content.substring(message.content.indexOf(' ') + 1);
+            const parts = commandContent.split(':');
+            
+            // Check for notext flag
+            if (parts.some(part => part.trim().toLowerCase() === 'notext')) {
             useText = false;
-            } else if (parts.length === 2) {
-            if (isNaN(parts[1])) {
-                customText = parts.slice(1).join(':');
-            } else {
-                intensityDecimal = parseInt(parts[1], 10) / 10 || 0.5;
-            }
-            } else if (parts.length >= 3) {
-            if (isNaN(parts[1])) {
-                customText = parts.slice(1, -1).join(':');
-                intensityDecimal = parseInt(parts[parts.length - 1], 10) / 10 || 0.5;
-            } else {
-                intensityDecimal = parseInt(parts[1], 10) / 10 || 0.5;
+            } 
+            // Custom text handling
+            else if (parts.length >= 2) {
+            // First check if the first part after the command is a number (intensity)
+            const firstPart = parts[1].trim();
+            
+            if (!isNaN(firstPart) && firstPart !== '') {
+                intensityDecimal = parseInt(firstPart, 10) / 10 || 0.5;
+                // If there's more content after intensity, use it as custom text
+                if (parts.length > 2) {
                 customText = parts.slice(2).join(':');
+                }
+            } else {
+                // If first part isn't a number, it's the custom text
+                customText = parts.slice(1).join(':');
             }
             }
         }
+        
+        // Clamp intensity between 0.2 and 0.8
+        intensityDecimal = Math.max(0.2, Math.min(0.8, intensityDecimal));
 
         console.log('Intensity:', intensityDecimal, 'Custom text:', customText, 'Use text:', useText);
 
@@ -201,13 +210,30 @@ async function overlayImageAndText(width, height, fontSize, fontPath, originalAt
         console.error('Error overlaying image and text:', error);
         throw new Error('Error overlaying image and text');
     } finally {
+        // Cleanup temporary files
         const filesToDelete = fs.readdirSync('./temp/').filter((file) => {
-            return file.includes('RIOSTRETCH') || file.includes('RIOTEXT') || file.includes('RIOOVERLAID') || file.includes('RIOFINAL') || file.includes('RIO');
+            return file.includes(`RIO-${rnd5dig}`) || 
+               file.includes(`RIOFINAL-${rnd5dig}`) || 
+               file.includes(`RIOOVERLAID-${rnd5dig}`) || 
+               file.includes(`RIOSTRETCH-${rnd5dig}`) || 
+               file.includes(`RIOTEXT-${rnd5dig}`);
         });
+
+        // read fileSize of the final file
+        const finalFile = fs.readdirSync('./temp/').find(file => file.includes(`RIOFINAL-${rnd5dig}`));
+        const finalFilePath = `temp/${finalFile}`
+        const finalFileSize = fs.statSync(finalFilePath).size; // in bytes
+        
         filesToDelete.forEach((file) => {
+            const filePath = `./temp/${file}`;
+            const deleteDelay = finalFileSize < 10 * 1024 * 1024 ? 5000 : 300000; // 5 seconds for small files, 5 minutes for large files
             setTimeout(() => {
-            fs.unlinkSync(`./temp/${file}`);
-            }, 10000);
+            try {
+                fs.unlinkSync(filePath);
+            } catch (err) {
+                console.error(`Failed to delete ${filePath}:`, err);
+            }
+            }, deleteDelay);
         });
     }
 }

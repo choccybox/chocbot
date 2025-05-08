@@ -9,7 +9,8 @@ const downloader = require('../backbone/lyrManager.js');
 module.exports = {
     run: async function handleMessage(message, client, isChained) {
         if (message.content.includes('help')) {
-            const commandUsed = message.content.split(' ').find(part => part !== 'help' && !part.startsWith('<@'));
+            const commandParts = message.content.trim().split(' ');
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
                     `### Example:\n\`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +

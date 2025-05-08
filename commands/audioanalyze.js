@@ -1,5 +1,5 @@
 const altnames = ['audio', 'aa', 'audioanalyze', 'speech2text', 's2t', 'stt'];
-const quickdesc = 'transcribe audio/video/links to text';
+const quickdesc = 'transcribe audio/video/links to text using openai whisper model';
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -12,7 +12,8 @@ const downloader = require('../backbone/dlManager.js');
 module.exports = {
     run: async function handleMessage(message, client, currentAttachments, isChained) {
         if (message.content.includes('help')) {
-            const commandUsed = message.content.split(' ').find(part => part !== 'help' && !part.startsWith('<@'));
+            const commandParts = message.content.trim().split(' ');
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
                     `### Examples:\n\`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\` \`${commandUsed} attachment\`\n` +
@@ -79,7 +80,13 @@ module.exports = {
                     return { success: false };
                 });
 
-                if (response.success) {
+                console.log(response);
+
+                if (response.success === false) {
+                    message.reactions.removeAll().catch(console.error);
+                    message.reply({ content: response.message });
+                    return;
+                } else if (response.success) {
                     const filePathConverted = `temp/${randomName}-S2T-${rnd5dig}.mp3`;
                     if (!fs.existsSync(filePathConverted)) {
                         message.reply({ content: 'Audio file not found after download/conversion.' });
@@ -128,19 +135,22 @@ async function processAudio(base64Audio, message, randomName, rnd5dig) {
         console.error(error);
         return message.reply({ content: `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**` });
     } finally {
-        // Search for all files matching the pattern and clean them up
-        const tempDir = './temp';
-        const pattern = new RegExp(`${randomName}-S2T-\\d+`);
-        
-        fs.readdirSync(tempDir).forEach(file => {
-            if (pattern.test(file)) {
-                try {
-                    fs.unlinkSync(path.join(tempDir, file));
-                    console.log(`Cleaned up file: ${file}`);
-                } catch (err) {
-                    console.error(`Error deleting file ${file}:`, err);
+        // Wait 5 seconds before deleting files
+        setTimeout(() => {
+            // Search for all files matching the pattern and clean them up
+            const tempDir = './temp';
+            const pattern = new RegExp(`${randomName}-S2T-\\d+`);
+            
+            fs.readdirSync(tempDir).forEach(file => {
+                if (pattern.test(file)) {
+                    try {
+                        fs.unlinkSync(path.join(tempDir, file));
+                        console.log(`Cleaned up file: ${file}`);
+                    } catch (err) {
+                        console.error(`Error deleting file ${file}:`, err);
+                    }
                 }
-            }
-        });
+            });
+        }, 5000); // 5000 milliseconds = 5 seconds
     }
 }

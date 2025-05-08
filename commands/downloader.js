@@ -1,25 +1,25 @@
 const altnames = ['download', 'down', 'dl'];
-const quickdesc = 'download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)';
+const quickdesc = 'download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)\n\n*Spotify may not result with a correct song if its not found on youtube, if that happens, try finding it on youtube and send the link instead.*';
 
 const dotenv = require('dotenv');
 dotenv.config();
 
 const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
-const downloaderPlaylist = require('../backbone/ytPlaylistManager.js');
-const ytpl = require('@distube/ytpl');
-const prettySeconds = require('pretty-seconds');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const Discogs = require('disconnect').Client;
+//const downloaderPlaylist = require('../backbone/ytPlaylistManager.js');
+//const ytpl = require('@distube/ytpl');
+//const prettySeconds = require('pretty-seconds');
+//const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     run: async function handleMessage(message, client, isChained) {
         if (message.content.includes('help')) {
-            const commandUsed = message.content.split(' ').find(part => part !== 'help' && !part.startsWith('<@'));
+            const commandParts = message.content.trim().split(' ');
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
-                    `### modifiers: \`audio/aud (audio only)\`\n` +
-                    `### example: \`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\`, \`${commandUsed}:aud https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +
+                    `### modifiers: \n\`audio/aud (audio only)\`\n` +
+                    `### example: \n\`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\`, \`${commandUsed}:aud https://www.youtube.com/watch?v=dQw4w9WgXcQ\`\n` +
                     `### aliases:\n\`${altnames.join(', ')}\`\n`,
             });
         }
@@ -219,7 +219,12 @@ module.exports = {
                 });
 
                 if (!response.success) {
-                    return message.reply({ content: `i wasn't able to download this video, this may be because the video is either age restricted or there is an issue somewhere else, i apologize for the mistake` });
+                    message.reactions.removeAll().catch(console.error);
+                    if (response.message) {
+                        return message.reply({ content: response.message });
+                    } else {
+                        return message.reply({ content: `I wasn't able to download this video. The source might be unavailable or restricted.` });
+                    }
                 }
 
                 console.log(response);
