@@ -124,7 +124,7 @@ async function GeniusSearch(song, artist) {
                     initialSong.toLowerCase().includes(topResult.title.toLowerCase()) ||
                     topResult.title.toLowerCase().includes(initialSong.toLowerCase());
                 
-                if (!titleMatchesInput) {
+                /* if (!titleMatchesInput) {
                     console.log('Title mismatch. Input:', initialSong, 'Genius result:', topResult.title);
                     console.log('Assuming no lyrics available for this song.');
                     return {
@@ -134,38 +134,167 @@ async function GeniusSearch(song, artist) {
                         lyrics: null,
                         image: null,
                     };
-                }
+                } */
                 
                 const lyricsPageResponse = await axios.get(topResult.url);
-                console.log('Lyrics page response status:', lyricsPageResponse.status);
-                console.log('Lyrics page response length:', lyricsPageResponse.data.length);
                 
-                // Use a regex to extract lyrics from divs with data-lyrics-container attribute
-                const lyricsRegex = /<div data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g;
-                console.log('Using regex pattern:', lyricsRegex);
+                const lyricsContainerRegex = /<div[^>]*data-lyrics-container="true"[^>]*>[\s\S]*?<p>[\s\S]*?<\/p>[\s\S]*?<\/div>/;
+                let lyricsContainerMatch = lyricsPageResponse.data.match(lyricsContainerRegex);
                 
-                const matches = [...lyricsPageResponse.data.matchAll(lyricsRegex)];
-                console.log('Regex matches found:', matches.length);
-                
-                if (matches.length > 0) {
-                    // Store lyrics in the top result for use later                
-                    topResult.extractedLyrics = matches.map(m => m[1]).join('\n')
-                    .replace(/<br\s*\/?>/g, '\n')  // Replace <br> with newlines
-                    .replace(/<[^>]*>/g, '')       // Remove all HTML tags
-                    // Decode HTML entities
-                    .replace(/&amp;/g, '&')
-                    .replace(/&lt;/g, '<')
-                    .replace(/&gt;/g, '>')
-                    .replace(/&quot;/g, '"')
-                    .replace(/&#x27;/g, "'")
-                    .replace(/&#039;/g, "'")
-                    .replace(/&#x2F;/g, "/")
-                    .replace(/&nbsp;/g, ' ');
+                // If no match found with the initial regex, try different patterns
+                if (!lyricsContainerMatch) {
+                    // Try alternative regex patterns
+                    const alternativeRegexes = [
+                        /<div[^>]*class="[^"]*Lyrics__Container[^"]*"[^>]*>[\s\S]*?<\/div>/,
+                        /<div[^>]*data-lyrics-container="true"[^>]*>[\s\S]*?<\/div>/,
+                        /<div[^>]*class="lyrics"[^>]*>[\s\S]*?<\/div>/
+                    ];
                     
-                    console.log('Extracted lyrics:', topResult.extractedLyrics);
-                } else {
-                    console.log('No lyrics matches found in the HTML');
+                    for (const regex of alternativeRegexes) {
+                        lyricsContainerMatch = lyricsPageResponse.data.match(regex);
+                        if (lyricsContainerMatch) break;
+                    }
                 }
+
+                // If we found lyrics, clean them up without removing content
+                if (lyricsContainerMatch && lyricsContainerMatch[0]) {
+                    // Remove the form section containing the "How to Format Lyrics" instructions
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(
+                        /<form[\s\S]*?<p>How to Format Lyrics:[\s\S]*?<\/form>/gi, 
+                        ''
+                    );
+                    
+                    // Remove annotations with font-weight="light" attribute
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(
+                        /<a\s+font-weight="light"[^>]*>[\s\S]*?<\/a>/gi,
+                        ''
+                    );
+                    
+                    // Language selector links
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(
+                        /<li><a href="https:\/\/genius\.com\/.*?-lyrics"[^>]*><div>.*?<\/div><\/a><\/li>/gi,
+                        ''
+                    );
+                    
+                    // Remove SVG elements
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(
+                        /<svg[\s\S]*?<\/svg>/gi,
+                        ''
+                    );
+                    
+                    // Remove other non-lyric elements
+                    const nonLyricsElements = [
+                        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+                        /<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi,
+                        /<button[^>]*>.*?<\/button>/gi,
+                        /<iframe[^>]*>.*?<\/iframe>/gi,
+                        /<aside[^>]*>.*?<\/aside>/gi,
+                        /<form[^>]*>[\s\S]*?<\/form>/gi,  // More aggressive form removal
+                        /<h2[^>]*>.*?<\/h2>/gi,  // Remove h2 elements
+                        /<ul[^>]*class="[^"]*translations[^"]*"[^>]*>[\s\S]*?<\/ul>/gi // Remove translation lists
+                    ];
+                    
+                    // Only remove elements that are definitely not lyrics
+                    nonLyricsElements.forEach(regex => {
+                        lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(regex, '');
+                    });
+                    
+                    // Remove empty nested div elements
+                    let prevContent = '';
+                    let currentContent = lyricsContainerMatch[0];
+                    
+                    // Keep replacing empty divs until no more changes are made
+                    while (prevContent !== currentContent) {
+                        prevContent = currentContent;
+                        currentContent = currentContent.replace(/<div[^>]*>\s*(<div[^>]*>\s*<\/div>\s*)*<\/div>/g, '');
+                    }
+                    
+                    lyricsContainerMatch[0] = currentContent;
+                    
+                    // Add <br><br> between divs that contain text
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0].replace(/<\/div>\s*<div[^>]*>/gi, '</div><br><div>');
+                    
+                    // Preserve all text content inside the lyrics container
+                    // but clean up any obvious inline ads or non-lyric elements
+                    lyricsContainerMatch[0] = lyricsContainerMatch[0]
+                        .replace(/class="[^"]*"/g, '')  // Remove class attributes
+                        .replace(/id="[^"]*"/g, '')     // Remove id attributes
+                        .replace(/style="[^"]*"/g, '')  // Remove style attributes
+                        .replace(/data-[^=]*="[^"]*"/g, ''); // Remove data attributes
+                }
+
+                fs.writeFileSync('lyricsContainerMatch.html', lyricsContainerMatch[0]);
+                
+                console.log('Found lyrics container:', !!lyricsContainerMatch);
+                
+                let extractedLyrics = null;
+                
+                if (lyricsContainerMatch && lyricsContainerMatch[0]) {
+                    // Process the entire lyrics container
+                    let htmlContent = lyricsContainerMatch[0];
+                    
+                    // Remove annotations with font-weight attribute (explanatory notes)
+                    htmlContent = htmlContent.replace(
+                        /<[^>]*font-weight="[^"]*"[^>]*>[\s\S]*?<\/[^>]*>/gi,
+                        ''
+                    );
+                    
+                    // Remove all translation links (not just Russian)
+                    htmlContent = htmlContent.replace(
+                        /<li><a href="https:\/\/genius\.com\/.*?-lyrics"[^>]*>.*?<\/a><\/li>/gi,
+                        ''
+                    );
+                    
+                    // Remove any divs/uls containing translation links or language references
+                    htmlContent = htmlContent.replace(
+                        /<div[^>]*>(?:[\s\S]*?(?:translation|español|русский|français|deutsch|italiano|português|日本語|한국어|中文)[\s\S]*?)<\/div>/gi,
+                        ''
+                    );
+                    
+                    // Remove language selector links and sections
+                    htmlContent = htmlContent.replace(
+                        /<ul[^>]*class="[^"]*(?:translations|languages)[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
+                        ''
+                    );
+                    
+                    // Remove all URLs from the text content
+                    htmlContent = htmlContent.replace(
+                        /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)/gi,
+                        ''
+                    );
+                    
+                    // Convert <br> tags to newlines
+                    htmlContent = htmlContent.replace(/<br\s*\/?>/gi, '\n');
+                    
+                    // Replace closing/opening divs with additional newlines
+                    htmlContent = htmlContent.replace(/<\/div>\s*<div[^>]*>/gi, '\n\n');
+                    
+                    // Remove all HTML tags but preserve their content
+                    htmlContent = htmlContent.replace(/<[^>]*>/g, '');
+                    
+                    // Fix HTML entities
+                    extractedLyrics = htmlContent
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&quot;/g, '"')
+                        .replace(/&apos;/g, "'")
+                        .replace(/&#x27;/g, "'")
+                        .replace(/\n{3,}/g, '\n\n') // Replace multiple newlines with just two
+                        .trim();
+                    
+                    // Ignore text starting with "How to Format Lyrics" and everything after it
+                    const formatIndex = extractedLyrics.indexOf("How to Format Lyrics");
+                    if (formatIndex !== -1) {
+                        extractedLyrics = extractedLyrics.substring(0, formatIndex).trim();
+                    }
+                        
+                    topResult.extractedLyrics = extractedLyrics;
+                    console.log('Successfully extracted lyrics');
+                }
+                
+                console.log('Extracted lyrics:', topResult.extractedLyrics ? 'Found' : 'Not found');
+               
             } catch (error) {
                 console.error('Error extracting lyrics:', error);
                 console.log('Error details:', error.message);
