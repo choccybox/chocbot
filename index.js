@@ -161,23 +161,29 @@ fs.writeFileSync('./database/commandsdesc.json', JSON.stringify(quickdesc, null,
 client.once('ready', async () => {
   const tempDir = path.join(__dirname, 'temp');
 
-  // Function to recursively delete files and folders
-  const cleanDirectory = (dir) => {
-    if (fs.existsSync(dir)) {
-      fs.readdirSync(dir).forEach((file) => {
-        const filePath = path.join(dir, file);
-        if (fs.lstatSync(filePath).isDirectory()) {
-          cleanDirectory(filePath); // Recursively clean subdirectories
-          fs.rmdirSync(filePath); // Remove the empty folder
-        } else {
-          fs.unlinkSync(filePath); // Remove the file
-        }
-      });
-    }
-  };
+  // Create temp directory if it doesn't exist
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir);
+    console.log('Created temp directory');
+  } else {
+    // Function to recursively delete files and folders
+    const cleanDirectory = (dir) => {
+      if (fs.existsSync(dir)) {
+        fs.readdirSync(dir).forEach((file) => {
+          const filePath = path.join(dir, file);
+          if (fs.lstatSync(filePath).isDirectory()) {
+            cleanDirectory(filePath); // Recursively clean subdirectories
+            fs.rmdirSync(filePath); // Remove the empty folder
+          } else {
+            fs.unlinkSync(filePath); // Remove the file
+          }
+        });
+      }
+    };
 
-  // Clean the temp directory
-  cleanDirectory(tempDir);
+    // Clean the temp directory
+    cleanDirectory(tempDir);
+  }
 
   console.log(`wake yo ass up bc it's time to go beast mode`);
 });
