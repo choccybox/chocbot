@@ -154,6 +154,11 @@ index.get('/temp/:filename', (req, res) => {
   });
 });
 
+// Set up a route for the root URL
+index.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'website', 'index.html'));
+});
+
 // Write the commands to a .json file
 fs.writeFileSync('./database/commands.json', JSON.stringify(commands, null, 2));
 fs.writeFileSync('./database/commandsdesc.json', JSON.stringify(quickdesc, null, 2));

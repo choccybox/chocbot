@@ -518,12 +518,20 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
                 url: downloadUrl,
                 responseType: 'stream'
             });
-            const title = `${data.title || `twitter_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
+            let title = `${data.title || `twitter_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
                 .replace(/https?:\/\/\S+/gi, '') // remove URLs
                 .split(' ').slice(0, 6).join(' ') // get first 6 words
                 .replace(/\s+/g, '_') // replace spaces with underscores
                 .toLowerCase()
-                .slice(0, 200); // limit length
+                .trim(); // remove trailing/leading whitespace
+            
+            // Check if title is empty after processing and use default if needed
+            if (!title || title.length === 0) {
+                title = `twitter_video_${randomName}_${rnd5dig}`;
+            }
+            
+            // Limit length after ensuring we have a valid title
+            title = title.slice(0, 200);
             
             const downloadStream = fs.createWriteStream(`temp/${title}.mp4`);
             response.data.pipe(downloadStream);
@@ -597,14 +605,18 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
                 url: downloadUrl,
                 responseType: 'stream'
             });
-            const title = `${data.title || `tiktok_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
-                .replace(/https?:\/\/\S+/gi, '')  // remove URLs
-                .replace(/[\u{1F600}-\u{1F6FF}\u{2600}-\u{27BF}]/gu, '')  // remove emojis
-                .replace(/#\w+\s*/g, '')  // remove hashtags
-                .split(' ').slice(0, 6).join(' ')  // limit to 6 words
+
+            let title = `${data.title || `tiktok_video_${randomName}_${rnd5dig}`}` // use title if available, otherwise use default
+                .replace(/https?:\/\/\S+/gi, '') // remove URLs
+                .split(' ').slice(0, 6).join(' ') // get first 6 words
                 .replace(/\s+/g, '_') // replace spaces with underscores
                 .toLowerCase()
-                .trim().slice(0, 50);  // limit length
+                .trim(); // remove trailing/leading whitespace
+            
+            // Check if title is empty after processing and use default if needed
+            if (!title || title.length === 0) {
+                title = `tiktok_video_${randomName}_${rnd5dig}`;
+            }
             
             const downloadStream = fs.createWriteStream(`temp/${title}.mp4`);
             response.data.pipe(downloadStream);
