@@ -18,7 +18,7 @@
     ]
   },
   "downloader": {
-    "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)\\n\\n*Spotify may not result with a correct song if its not found on youtube, if that happens, try finding it on youtube and send the link instead.*",
+    "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify) *Spotify may not result with a correct song if its not found on youtube.*",
     "altnames": [
       "download",
       "down",
@@ -50,6 +50,14 @@
       "riodejaneiro",
       "rjd",
       "rdj"
+    ]
+  },
+  "translate": {
+    "quickdescript": "translates text from autodetected language to English, or from one specified language to another.",
+    "altnames": [
+      "translate",
+      "trans",
+      "tl"
     ]
   }
 }

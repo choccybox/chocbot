@@ -1,5 +1,5 @@
 const altnames = ['download', 'down', 'dl'];
-const quickdesc = 'download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify)\n\n*Spotify may not result with a correct song if its not found on youtube, if that happens, try finding it on youtube and send the link instead.*';
+const quickdesc = 'download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify) *Spotify may not result with a correct song if its not found on youtube.*';
 
 const dotenv = require('dotenv');
 dotenv.config();

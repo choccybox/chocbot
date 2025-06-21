@@ -188,6 +188,24 @@ client.once('ready', async () => {
 
     // Clean the temp directory
     cleanDirectory(tempDir);
+
+
+    // Memory cleanup interval - runs every 6 hours
+    setInterval(() => {
+      // Force garbage collection if available
+      if (global.gc) {
+      global.gc();
+      console.log('Forced garbage collection');
+      }
+      
+      // Log current memory usage
+      const memUsage = process.memoryUsage();
+      console.log('Memory usage after cleanup:', {
+      rss: Math.round(memUsage.rss / 1024 / 1024) + ' MB',
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB'
+      });
+    }, 6 * 60 * 60 * 1000); // 6 hours in milliseconds
   }
 
   console.log(`wake yo ass up bc it's time to go beast mode`);

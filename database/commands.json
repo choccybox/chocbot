@@ -67,5 +67,14 @@
   },
   "rdj": {
     "file": "riodejaneiro.js"
+  },
+  "translate": {
+    "file": "translate.js"
+  },
+  "trans": {
+    "file": "translate.js"
+  },
+  "tl": {
+    "file": "translate.js"
   }
 }
