@@ -6,8 +6,9 @@ const SoundCloud = require("soundcloud-scraper");
 const NodeID3 = require('node-id3');
 const path = require('path');
 const sanitize = require('sanitize-filename');
-const client = new SoundCloud.Client();
 const SpotifyToYoutubeMusic = require('spotify-to-ytmusic');
+const scdl = require('soundcloud-downloader').default;
+scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 
 async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, identifierName, convertArg, _isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
@@ -231,11 +232,13 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
     return new Promise(async (resolve, reject) => {
         try {
             console.log('Downloading from SoundCloud:', sanitizedLink);
-            const song = await client.getSongInfo(sanitizedLink);
-
-            // Use SoundCloud info for search, but not for tags
-            const searchTitle = song.title || '';
-            const searchArtist = song.author?.name.split('/')[0].trim() || song.user?.name.split('/')[0].trim() || '';
+            
+            // Get song info using soundcloud-downloader
+            const songInfo = await scdl.getInfo(sanitizedLink);
+            
+            // Extract search information for metadata
+            const searchTitle = songInfo.title || '';
+            const searchArtist = songInfo.user?.username || '';
 
             let tags = {
                 title: searchTitle,
@@ -257,16 +260,15 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                 const mbSearchUrl = `https://musicbrainz.org/ws/2/recording/?query=recording:"${encodeURIComponent(searchTitle)}"%20AND%20artist:"${encodeURIComponent(searchArtist)}"&fmt=json&limit=1`;
                 const mbResponse = await axios.get(mbSearchUrl, { headers: { 'User-Agent': 'chocbot/1.0 ( https://github.com/choccybox/chocbot )' } });
                 const recordings = mbResponse.data.recordings;
-                /* console.log('MusicBrainz response:', mbResponse.data.recordings[0].releases); */
+                
                 if (recordings && recordings.length > 0) {
                     const rec = recordings[0];
                     mbData = {
                         artist: rec['artist-credit'] && rec['artist-credit'][0]?.name ? rec['artist-credit'][0].name : searchArtist,
                         album_artist: rec['artist-credit'] && rec['artist-credit'][0]?.name ? rec['artist-credit'][0].name : searchArtist,
                         year: rec['first-release-date'] ? rec['first-release-date'].split('-')[0] : '',
-                        /* genre: rec.tags && rec.tags.length > 0 ? rec.tags.map(t => t.name).join(', ') : '', */
                         album: rec.releases && rec.releases.length > 0 ? rec.releases[0].title : '',
-                        cover: song.thumbnail,
+                        cover: songInfo.artwork_url,
                         TRCK: rec.releases && rec.releases.length > 0 && rec.releases[0].media && rec.releases[0].media[0]['track-offset'] ? rec.releases[0].media[0]['track-offset'] : ''
                     };
                     console.log('MusicBrainz data:', mbData);
@@ -286,7 +288,7 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                     genre: '',
                     album: '',
                     publisher: '',
-                    cover_image: song.artworkURL || song.thumbnail
+                    cover: songInfo.artwork_url
                 };
             }
 
@@ -300,14 +302,20 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
 
             const fileName = useIdentifier
                 ? `temp/${randomName}-${identifierName}-${rnd5dig}.mp3`
-                : `temp/${searchTitle}.mp3`;
+                : `temp/${sanitize(searchTitle, { replacement: '_' }).slice(0, 200)}.mp3`;
 
-            // Download the song
-            const stream = await song.downloadProgressive();
-            const writer = stream.pipe(fs.createWriteStream(fileName));
+            // Download the song using soundcloud-downloader
+            const stream = await scdl.download(sanitizedLink);
+            const writer = fs.createWriteStream(fileName);
+            
+            stream.pipe(writer);
 
             writer.on("finish", async () => {
-                console.log("Finished writing song!");
+                console.log("Finished writing song");
+
+                // Get file size for under 10MB check
+                const stats = fs.statSync(fileName);
+                const fileSizeInBytes = stats.size;
 
                 // Download and crop album art if available
                 const coverUrl = mbData.cover;
@@ -375,7 +383,7 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                 resolve({
                     success: true,
                     videoTitle: searchTitle || fileName,
-                    isUnder10MB: song.size < 10 * 1024 * 1024 // Check if the file is under 10 MB
+                    isUnder10MB: fileSizeInBytes < 10 * 1024 * 1024 // Check if the file is under 10 MB
                 });
             });
 
@@ -644,7 +652,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
             return result.success 
                 ? { success: true, title: result.videoTitle }
                 : { success: false, message: result.message };
-        }else if (/spotify\.com/.test(downloadLink)) {
+        } else if (/spotify\.com/.test(downloadLink)) {
             message.react('🔽').catch()
             const result = await downloadSpotify(message, downloadLink, randomName, rnd5dig, identifierName, useIdentifier);
             return result.success 
