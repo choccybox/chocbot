@@ -2,7 +2,6 @@ const axios = require('axios');
 const fs = require('fs');
 const { twitter, igdl, ttdl } = require('btch-downloader');
 const ffmpeg = require('fluent-ffmpeg');
-const SoundCloud = require("soundcloud-scraper");
 const NodeID3 = require('node-id3');
 const path = require('path');
 const sanitize = require('sanitize-filename');
