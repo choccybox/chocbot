@@ -102,12 +102,17 @@ module.exports = {
             fs.writeFileSync(textPath, base64Data, 'base64');
 
             // Overlay avatar and text onto base iFruit image
-            const outputPath = `temp/${userName}-IFRUIT-${rnd5dig}.png`;
-            await sharp('images/ifruit.png')
+            const outputPath = `temp/${userName}-IFRUIT-${rnd5dig}.gif`;
+            const compositeImage = await sharp('images/ifruit.png')
                 .composite([
                     { input: avatarPath, top: 444, left: 142 },
                     { input: textPath, top: 315, left: 136 }
                 ])
+                .toBuffer();
+
+            // Convert to GIF
+            await sharp(compositeImage, { animated: true })
+                .gif()
                 .toFile(outputPath);
 
             // Send the final image
