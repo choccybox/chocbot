@@ -211,4 +211,8 @@ client.once('ready', async () => {
   console.log(`wake yo ass up bc it's time to go beast mode`);
 });
 
+client.on('clientReady', () => {
+  console.log('Client is ready');
+});
+
 client.login(process.env.TOKEN);

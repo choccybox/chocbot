@@ -38,6 +38,18 @@
   "freak": {
     "file": "freakyfont.js"
   },
+  "gtacall": {
+    "file": "ifruitcall.js"
+  },
+  "gta": {
+    "file": "ifruitcall.js"
+  },
+  "call": {
+    "file": "ifruitcall.js"
+  },
+  "ifruit": {
+    "file": "ifruitcall.js"
+  },
   "lyrics": {
     "file": "lyricfinder.js"
   },

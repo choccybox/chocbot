@@ -32,6 +32,15 @@
       "freak"
     ]
   },
+  "ifruitcall": {
+    "quickdescript": "Overlays your or specified user\\'s pfp and username/nickname onto the GTA iFruit call screen",
+    "altnames": [
+      "gtacall",
+      "gta",
+      "call",
+      "ifruit"
+    ]
+  },
   "lyricfinder": {
     "quickdescript": "Fings lyrics for a song from music platforms (YouTube, Spotify, SoundCloud)",
     "altnames": [

@@ -16,6 +16,7 @@
     "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.6.8",
     "btch-downloader": "^3.7.18",
+    "canvas": "^3.2.0",
     "disconnect": "^1.2.2",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.5",
