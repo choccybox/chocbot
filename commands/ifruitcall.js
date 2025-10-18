@@ -7,61 +7,77 @@ const sharp = require('sharp');
 const { generate } = require('text-to-image');
 
 module.exports = {
-    run: async function handleMessage(message, client, currentAttachments, isChained) {
+    run: async function handleMessage(message) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');
             const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
             return message.reply({
                 content: `${quickdesc}\n` +
-                    `### Arguments:\n`+
-                    `\`@user\` use mentioned user's pfp and username\n` +
-                    `\`:customname\` use custom name (e.g., \`${commandUsed}:packgod\`)\n` +
-                    `### Examples:\n\`${commandUsed} @user\` \`${commandUsed}\` \`${commandUsed}:packgod\`\n` +
+                    `### Usage:\n`+
+                    `\`${commandUsed}\` - your pfp + display name\n` +
+                    `\`${commandUsed} @user\` - their pfp + display name\n` +
+                    `\`${commandUsed} @user1 @user2\` - user1's pfp + user2's display name\n` +
+                    `\`${commandUsed} CustomName\` - your pfp + custom name\n` +
+                    `\`${commandUsed} @user CustomName\` - their pfp + custom name\n` +
                     `### Aliases:\n\`${altnames.join(', ')}\``,
             });
         }
 
         try {
-            // 1. Get target user and display name
-            let targetUser = message.author;
-            let displayName;
+            // Parse mentions and remaining text
+            const mentions = Array.from(message.mentions.users.values());
+            // Remove command prefix (e.g., "?", "!") and command name
+            const commandPattern = new RegExp(`^[!?.]*(${altnames.join('|')})\\s*`, 'i');
+            const contentWithoutCommand = message.content.replace(commandPattern, '').trim();
+            const contentWithoutMentions = contentWithoutCommand.replace(/<@!?\d+>/g, '').trim();
             
-            // Check for custom name after colon
-            const colonMatch = message.content.match(/:([\w\s]+)/);
+            // Determine pfp and name sources
+            let pfpUser = message.author;
+            let displayName = null;
             
-            if (colonMatch) {
-                // Use custom name
-                displayName = colonMatch[1].trim().toUpperCase();
-            } else if (message.mentions.users.size > 0) {
-                // Use mentioned user
-                targetUser = message.mentions.users.first();
-                if (message.guild) {
-                    const member = await message.guild.members.fetch(targetUser.id);
-                    displayName = member.nickname || member.displayName || targetUser.username;
-                } else {
-                    displayName = targetUser.displayName || targetUser.username;
-                }
-                displayName = displayName.toUpperCase();
+            if (mentions.length === 0) {
+            // No mentions: use author's pfp
+            pfpUser = message.author;
+            // Custom name if provided, otherwise author's display name
+            displayName = contentWithoutMentions || null;
+            } else if (mentions.length === 1) {
+            // One mention: use their pfp
+            pfpUser = mentions[0];
+            // Custom name if provided, otherwise mentioned user's display name
+            displayName = contentWithoutMentions || null;
             } else {
-                // Use command author
-                if (message.guild) {
-                    const member = await message.guild.members.fetch(targetUser.id);
-                    displayName = member.nickname || member.displayName || targetUser.username;
-                } else {
-                    displayName = targetUser.displayName || targetUser.username;
-                }
-                displayName = displayName.toUpperCase();
+            // Two+ mentions: first user's pfp, second user's display name
+            pfpUser = mentions[0];
+            const nameUser = mentions[1];
+            if (message.guild) {
+                const member = await message.guild.members.fetch(nameUser.id);
+                displayName = member.displayName || member.nickname || nameUser.globalName || nameUser.username;
+            } else {
+                displayName = nameUser.globalName || nameUser.username;
+            }
             }
 
-            // 3. Get user's profile picture URL (using 256 as it must be a power of 2)
-            const avatarURL = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
+            // Get display name if not already set
+            if (!displayName) {
+            if (message.guild) {
+                const member = await message.guild.members.fetch(pfpUser.id);
+                displayName = member.displayName || member.nickname || pfpUser.globalName || pfpUser.username;
+            } else {
+                displayName = pfpUser.globalName || pfpUser.username;
+            }
+            }
+
+            displayName = displayName.toUpperCase();
+
+            // Get profile picture URL
+            const avatarURL = pfpUser.displayAvatarURL({ extension: 'png', size: 256 });
 
             const userName = message.author.id;
             const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
 
             message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
 
-            // 4. Download and resize profile picture to 232x232, then to 50x50
+            // Download and resize profile picture
             const avatarResponse = await axios.get(avatarURL, { responseType: 'arraybuffer' });
             const resizedAvatar = await sharp(avatarResponse.data)
                 .resize(232, 232)
@@ -69,7 +85,7 @@ module.exports = {
             const avatarPath = `temp/${userName}-AVATAR-${rnd5dig}.png`;
             fs.writeFileSync(avatarPath, resizedAvatar);
 
-            // 5. Generate text image for display name
+            // Generate text image for display name
             const dataUri = await generate(displayName, {
                 debug: false,
                 maxWidth: 850,
@@ -85,22 +101,22 @@ module.exports = {
             const textPath = `temp/${userName}-TEXT-${rnd5dig}.png`;
             fs.writeFileSync(textPath, base64Data, 'base64');
 
-            // 6. Overlay avatar and text onto base iFruit image
+            // Overlay avatar and text onto base iFruit image
             const outputPath = `temp/${userName}-IFRUIT-${rnd5dig}.png`;
             await sharp('images/ifruit.png')
                 .composite([
-                    { input: avatarPath, top: 444, left: 142 }, // Adjust positions as needed
-                    { input: textPath, top: 315, left: 136 }   // Adjust positions as needed
+                    { input: avatarPath, top: 444, left: 142 },
+                    { input: textPath, top: 315, left: 136 }
                 ])
                 .toFile(outputPath);
 
-            // 7. Send the final image
+            // Send the final image
             message.reply({
                 files: [{ attachment: outputPath }]
             });
             message.reactions.removeAll().catch(console.error);
 
-            // 8. Cleanup temporary files after 5 seconds
+            // Cleanup temporary files after 5 seconds
             setTimeout(() => {
                 [avatarPath, textPath, outputPath].forEach(path => {
                     try {
