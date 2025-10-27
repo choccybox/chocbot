@@ -6,10 +6,9 @@ dotenv.config();
 
 const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
-//const downloaderPlaylist = require('../backbone/ytPlaylistManager.js');
-//const ytpl = require('@distube/ytpl');
-//const prettySeconds = require('pretty-seconds');
-//const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { exec } = require('child_process');
+const util = require('util');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     run: async function handleMessage(message, client, isChained) {
@@ -44,163 +43,7 @@ module.exports = {
             message.content.toLowerCase().includes('playlist') &&
             /(youtube\.com|youtu\.be)/i.test(message.content)
         ) {
-            return message.reply({ content: 'playlist support is not available yet.' });
-            
-           /*  // use ytpl to get info from the playlist such as amount of videos, their title thumbnail, etc.
-            const playlistLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
-            const playlist = await ytpl(playlistLink);
-            console.log(playlist);
-            // Build playlist info object (not repeated for each video)
-            // Helper to convert "hh:mm:ss" or "mm:ss" to seconds
-            function durationToSeconds(duration) {
-                if (!duration) return 0;
-                const parts = duration.split(':').map(Number);
-                if (parts.length === 3) {
-                    return parts[0] * 3600 + parts[1] * 60 + parts[2];
-                } else if (parts.length === 2) {
-                    return parts[0] * 60 + parts[1];
-                } else if (parts.length === 1) {
-                    return parts[0];
-                }
-                return 0;
-            }
-
-            // Import discogs client
-            const discogsClient = new Discogs({ userToken: process.env.DISCOGS_TOKEN });
-            let discogsData = {};
-
-            try {
-                // Search Discogs for the playlist title (remove "Album - " prefix)
-                const searchTitle = playlist.title.replace(/^Album - /, '').trim();
-                const discogsResult = await discogsClient.database().search(searchTitle, { type: 'release', per_page: 1 });
-                if (discogsResult.results && discogsResult.results.length > 0) {
-                    const release = discogsResult.results[0];
-                    discogsData = {
-                        artist: (release.artist || (playlist.items[0]?.author?.name ?? '')).replace(/ - Topic$/, ''),
-                        year: release.year || '',
-                        genre: release.genre ? (Array.isArray(release.genre) ? release.genre.join(', ') : release.genre) : '',
-                        cover_image: release.cover_image || playlist.thumbnail.url
-                    };
-                }
-            } catch (err) {
-                console.error('Discogs lookup failed:', err);
-                // fallback to playlist info only
-                discogsData = {
-                    artist: playlist.items[0]?.author?.name ?? '',
-                    year: '',
-                    label: '',
-                    genre: '',
-                    discogs_url: '',
-                    cover_image: playlist.thumbnail.url
-                };
-            }
-
-            const playlistInfo = {
-                title: playlist.title.replace(/^Album - /, ''),
-                thumbnail: discogsData.cover_image || playlist.thumbnail.url,
-                artist: discogsData.artist,
-                year: discogsData.year,
-                label: discogsData.label,
-                genre: discogsData.genre,
-                discogs_url: discogsData.discogs_url,
-                videos: playlist.items.map((video, idx) => ({
-                    title: video.title,
-                    number: idx + 1, // get number by getting video place in items
-                    id: video.id,
-                    thumbnail: video.thumbnail,
-                    duration: video.duration,
-                })),
-                total_duration: prettySeconds(
-                    playlist.items.reduce((sum, video) => sum + durationToSeconds(video.duration), 0)
-                )
-            };
-            // create folder and json file
-            const safeTitle = playlist.title.replace(/^Album - /, '').toLowerCase();
-            const folderPath = `temp/${safeTitle}`;
-            if (!fs.existsSync(folderPath)) {
-                fs.mkdirSync(folderPath, { recursive: true });
-            }
-            const tempFilePath = `${folderPath}/${safeTitle}.json`;
-            fs.writeFileSync(tempFilePath, JSON.stringify(playlistInfo, null, 2), 'utf8');
-
-            // Send playlist info and ask user to continue or cancel
-
-            const playlistEmbed = new EmbedBuilder()
-                .setTitle(`${playlistInfo.title}`)
-                .setDescription(`you're about to download a playlist with **${playlistInfo.videos.length}** videos\ntotal duration: **${playlistInfo.total_duration}**\n\n**do you want to continue?**\naudio quality is limited to **124kbps** and some data is gathered from discogs such as release year and cover art.`)
-                .setThumbnail(playlistInfo.thumbnail)
-                .setColor(0x00AE86);
-
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('continue_download')
-                        .setLabel('Continue')
-                        .setStyle(ButtonStyle.Success),
-                    new ButtonBuilder()
-                        .setCustomId('cancel_download')
-                        .setLabel('Cancel')
-                        .setStyle(ButtonStyle.Danger)
-                );
-
-            const infoMsg = await message.reply({ 
-                embeds: [playlistEmbed], 
-                components: [row] 
-            });
-
-            // Wait for button interaction
-            const filter = (i) => i.user.id === message.author.id;
-            try {
-                const interaction = await infoMsg.awaitMessageComponent({ filter, time: 60000 });
-                if (interaction.customId === 'cancel_download') {
-                    await interaction.update({ content: 'Download cancelled.', embeds: [], components: [] });
-                    // Clean up temp file and folder
-                    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-                    if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
-                    return;
-                }
-                await interaction.update({ content: `Starting download, this should take just a few mins, you'll be notified when it's done`, embeds: [], components: [] });
-            } catch (err) {
-                await infoMsg.edit({ content: 'No response. Download cancelled.', embeds: [], components: [] });
-                if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-                if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
-                return;
-            }
-
-            // send json file to downloader.js
-            const response = await downloaderPlaylist.downloadPlaylist(message, tempFilePath, safeTitle).catch(error => {
-                console.error('Error sending URL to downloader.js:', error);
-                return { success: false };
-            });
-
-            if (!response.success) {
-                return message.reply({ content: `i wasn't able to download this video, this may be because the video is either age restricted or there is an issue somewhere else, i apologize for the mistake` });
-            }
-            console.log(response);
-            message.reactions.removeAll().catch(console.error);
-            
-            if (response.success) {
-                const fileName = `${playlistInfo.title}.zip`;
-                const filePath = `temp/${fileName}`;
-                if (fs.existsSync(filePath)) {
-                    const fileSize = fs.statSync(filePath).size;
-                    if (fileSize < 10 * 1024 * 1024) { // 10 MB
-                        await message.reply({ files: [{ attachment: filePath, name: fileName }] });
-                    } else {
-                        const encodedFileName = encodeURIComponent(fileName);
-                        const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
-                        await message.reply({ content: `File is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.` });
-                    }
-                    // delete files and folder after 5 minutes
-                    setTimeout(() => {
-                        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-                        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                        if (fs.existsSync(folderPath)) fs.rmdirSync(folderPath, { recursive: true });
-                    }, 300000); // 5 minutes
-                } else {
-                    await message.reply({ content: 'Zip file not found.' });
-                }
-            } */
+            return message.reply({ content: 'playlist support is not available yet.' });   
         } else {
             try {
                 const downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
@@ -240,38 +83,143 @@ module.exports = {
 
                     let fileName = response.title;
                     let filePath = `temp/${fileName}.${convertArg ? 'mp3' : 'mp4'}`;
+                    let isGif = false;
+                    let originalFilePath = filePath; // Store original path for cleanup
 
                     if (!fs.existsSync(filePath)) {
                         const foundFile = findFile(fileName);
                         if (foundFile) {
                             filePath = `temp/${foundFile}`;
+                            originalFilePath = filePath;
                         } else {
                             return message.reply({ content: 'File not found.' });
                         }
                     }
 
+                    // Check if video has audio track (only for video files)
+                    if (!convertArg && filePath.endsWith('.mp4')) {
+                        const execPromise = util.promisify(exec);
+                        
+                        try {
+                            const { stdout } = await execPromise(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of default=noprint_wrappers=1:nokey=1 "${filePath}"`);
+                            const hasAudio = stdout.trim() === 'audio';
+                            
+                            if (!hasAudio) {
+                                const row = new ActionRowBuilder()
+                                    .addComponents(
+                                        new ButtonBuilder()
+                                            .setCustomId('convert_to_gif')
+                                            .setLabel('Convert to GIF')
+                                            .setStyle(ButtonStyle.Primary),
+                                        new ButtonBuilder()
+                                            .setCustomId('keep_video')
+                                            .setLabel('Keep as Video')
+                                            .setStyle(ButtonStyle.Secondary)
+                                    );
+
+                                const promptMsg = await message.reply({ 
+                                    content: 'This video has no audio track. Would you like to convert it to a GIF?', 
+                                    components: [row] 
+                                });
+
+                                const filter = (i) => i.user.id === message.author.id;
+                                try {
+                                    const interaction = await promptMsg.awaitMessageComponent({ filter, time: 30000 });
+                                    
+                                    if (interaction.customId === 'convert_to_gif') {
+                                        const convertMsg = await interaction.update({ content: 'Converting to GIF...', components: [] });
+                                        setTimeout(() => {
+                                            convertMsg.delete().catch(console.error);
+                                        }, 3000);
+                                        
+                                        const gifPath = filePath.replace('.mp4', '.gif');
+                                        const palettePath = filePath.replace('.mp4', '_palette.png');
+                                        
+                                        // Get original video dimensions
+                                        const { stdout: dimensions } = await execPromise(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${filePath}"`);
+                                        const [width, height] = dimensions.trim().split('x').map(Number);
+                                        
+                                        let scale = height;
+                                        let attempts = 0;
+                                        const maxAttempts = 10;
+                                        
+                                        while (attempts < maxAttempts) {
+                                            // Generate palette with current scale
+                                            await execPromise(`ffmpeg -y -i "${filePath}" -vf "fps=15,scale=-1:${scale}:flags=lanczos,palettegen=stats_mode=diff" "${palettePath}"`);
+                                            
+                                            // Generate GIF using palette
+                                            await execPromise(`ffmpeg -y -i "${filePath}" -i "${palettePath}" -filter_complex "fps=15,scale=-1:${scale}:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" "${gifPath}"`);
+                                            
+                                            if (fs.existsSync(gifPath)) {
+                                                const gifSize = fs.statSync(gifPath).size;
+                                                const maxSize = 10 * 1024 * 1024; // 8 MB
+                                                
+                                                if (gifSize <= maxSize) {
+                                                    // Clean up palette file
+                                                    if (fs.existsSync(palettePath)) fs.unlinkSync(palettePath);
+                                                    filePath = gifPath;
+                                                    isGif = true;
+                                                    break;
+                                                } else {
+                                                    // Reduce scale to 75% of current height
+                                                    scale = Math.floor(scale * 0.75);
+                                                    attempts++;
+                                                }
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        
+                                        // Clean up palette file if still exists
+                                        if (fs.existsSync(palettePath)) fs.unlinkSync(palettePath);
+                                    } else {
+                                        await interaction.update({ content: 'Keeping as video.', components: [] });
+                                    }
+                                } catch (err) {
+                                    await promptMsg.edit({ content: 'No response. Sending as video.', components: [] });
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error checking audio track:', error);
+                        }
+                    }
+
+
                     const fileSize = fs.statSync(filePath).size;
-                    if (fileSize < 10 * 1024 * 1024) { // 10 MB
+                    const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
+                    
+                    if (!isFileTooLarge) {
                         const fileData = fs.readFileSync(filePath);
                         await message.reply({ files: [{ attachment: fileData, name: filePath.split('/').pop() }] });
                     } else {
-                        const encodedFileName = encodeURIComponent(`${fileName}.${convertArg ? 'mp3' : 'mp4'}`).replace(/%20/g, ' ');
+                        const encodedFileName = encodeURIComponent(filePath.split('/').pop()).replace(/%20/g, ' ');
                         const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
                         await message.reply({ content: `File is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.` });
                     }
                     message.reactions.removeAll().catch(console.error);
 
-                    const filesToDelete = fs.readdirSync('./temp/').filter((file) => {
-                        return file.includes(response.title) && (file.endsWith('.mp3') || file.endsWith('.mp4'));
-                    });
-                    filesToDelete.forEach((file) => {
-                        const filePath = `./temp/${file}`;
-                        const fileSize = fs.statSync(filePath).size;
-                        const deleteDelay = fileSize < 10 * 1024 * 1024 ? 5000 : 300000; // 5 seconds for small files, 5 minutes for large files
+                    // Delete files with appropriate delay
+                    const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
+                    
+                    // Delete original video file
+                    if (fs.existsSync(originalFilePath)) {
                         setTimeout(() => {
-                            fs.unlinkSync(filePath);
+                            if (fs.existsSync(originalFilePath)) {
+                                fs.unlinkSync(originalFilePath);
+                                console.log(`Deleted: ${originalFilePath}`);
+                            }
                         }, deleteDelay);
-                    });
+                    }
+                    
+                    // Delete converted GIF file (if different from original)
+                    if (isGif && filePath !== originalFilePath && fs.existsSync(filePath)) {
+                        setTimeout(() => {
+                            if (fs.existsSync(filePath)) {
+                                fs.unlinkSync(filePath);
+                                console.log(`Deleted: ${filePath}`);
+                            }
+                        }, deleteDelay);
+                    }
                 } else {
                     message.reply({ content: 'Error sending URL to downloader.js.' });
                 }

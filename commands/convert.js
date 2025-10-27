@@ -62,63 +62,71 @@ module.exports = {
             const validFormats = [...new Set([...imageTypes, ...audioTypes, ...videoTypes])];
             
             if (!validFormats.includes(conversionFormat)) {
-                return message.reply({ content: `Invalid or unsupported format: ${conversionFormat}` });
+            return message.reply({ content: `Invalid or unsupported format: ${conversionFormat}` });
             }
             
             if (conversionFormat === currentFormat) {
-                return message.reply({ content: `File is already in ${conversionFormat} format` });
+            return message.reply({ content: `File is already in ${conversionFormat} format` });
             }
 
             // if user wants to convert video to image, reply with a warning (except for GIF)
             if (fileType === 'video' && imageTypes.includes(conversionFormat) && conversionFormat !== 'gif') {
-                return message.reply({ content: `Converting video to image isn't supported` });
+            return message.reply({ content: `Converting video to image isn't supported` });
             }
 
             const outputFilePath = `temp/${randomName}-CONVDONE-${rnd5dig}.${conversionFormat}`;
             console.log(`User ${message.author.tag} chose to convert to ${conversionFormat}`);
 
             try {
-                message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
-                console.log(`converting from **${currentFormat}** to **${conversionFormat}** (file name: ${filePath} -> ${outputFilePath})`);
-                const response = await conversionDecider.conversionDecider(message, filePath, outputFilePath, conversionFormat);
+            message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
+            console.log(`converting from **${currentFormat}** to **${conversionFormat}** (file name: ${filePath} -> ${outputFilePath})`);
+            const response = await conversionDecider.conversionDecider(message, filePath, outputFilePath, conversionFormat);
 
-                if (!response || !response.success) {
-                    message.reactions.removeAll().catch(console.error);
-                    return message.reply({ content: response?.message || 'Conversion failed. Please try again.' });
-                }
-
+            if (!response || !response.success) {
                 message.reactions.removeAll().catch(console.error);
-                const fileSize = fs.statSync(outputFilePath).size;
-                
-                let replyContent = `${(response.originalSize / 1024).toFixed(2)} KB -> ${(response.newSize / 1024).toFixed(2)} KB (${response.sizeChangeDirection}${Math.abs(response.sizeDifferenceBits / 1024).toFixed(2)} KB/${response.sizeChangeDirection}${Math.abs(response.sizeDifferencePercentage).toFixed(2)}%)\n`;
-                
-                if (fileSize > 10 * 1024 * 1024) {
-                    replyContent += `\nFile is too large to send directly. Please download from: ${process.env.UPLOADURL}/${outputFilePath}`;
-                    await message.reply({ content: replyContent });
-                } else {
-                    await message.reply({
-                        content: replyContent,
-                        files: [outputFilePath]
-                    });
-                }
-            } catch (error) {
-                return message.reply({ content: `Error converting to ${conversionFormat}: ${error.message}` });
-            } finally {
-                // Search for all files matching the pattern and clean them up
+                return message.reply({ content: response?.message || 'Conversion failed. Please try again.' });
+            }
+
+            message.reactions.removeAll().catch(console.error);
+            const fileSize = fs.statSync(outputFilePath).size;
+            const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
+            
+            let replyContent = `${(response.originalSize / 1024).toFixed(2)} KB -> ${(response.newSize / 1024).toFixed(2)} KB (${response.sizeChangeDirection}${Math.abs(response.sizeDifferenceBits / 1024).toFixed(2)} KB/${response.sizeChangeDirection}${Math.abs(response.sizeDifferencePercentage).toFixed(2)}%)\n`;
+            
+            if (isFileTooLarge) {
+                const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
+                const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.`;
+                await message.reply({ content: replyContent });
+            } else {
+                const fileData = fs.readFileSync(outputFilePath);
+                await message.reply({
+                content: replyContent,
+                files: [{ attachment: fileData, name: outputFilePath.split('/').pop() }]
+                });
+            }
+
+            // Delete files with appropriate delay
+            const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
+            
+            setTimeout(() => {
                 const tempDir = './temp';
                 const patternConv = new RegExp(`${randomName}-CONV-${rnd5dig}`);
                 const patternConvDone = new RegExp(`${randomName}-CONVDONE-${rnd5dig}`);
                 
                 fs.readdirSync(tempDir).forEach(file => {
-                    if (patternConv.test(file) || patternConvDone.test(file)) {
-                        try {
-                            fs.unlinkSync(path.join(tempDir, file));
-                            console.log(`Cleaned up file: ${file}`);
-                        } catch (err) {
-                            console.error(`Error deleting file ${file}:`, err);
-                        }
+                if (patternConv.test(file) || patternConvDone.test(file)) {
+                    try {
+                    fs.unlinkSync(path.join(tempDir, file));
+                    console.log(`Cleaned up file: ${file}`);
+                    } catch (err) {
+                    console.error(`Error deleting file ${file}:`, err);
                     }
+                }
                 });
+            }, deleteDelay);
+            } catch (error) {
+            return message.reply({ content: `Error converting to ${conversionFormat}: ${error.message}` });
             }
             return;
         }
@@ -181,47 +189,55 @@ module.exports = {
 
                 message.reactions.removeAll().catch(console.error);
                 const fileSize = fs.statSync(outputFilePath).size;
+                const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
                 
                 let replyContent = `${(response.originalSize / 1024).toFixed(2)} KB -> ${(response.newSize / 1024).toFixed(2)} KB (${response.sizeChangeDirection}${Math.abs(response.sizeDifferenceBits / 1024).toFixed(2)} KB/${response.sizeChangeDirection}${Math.abs(response.sizeDifferencePercentage).toFixed(2)}%)\n`;
                 
-                if (fileSize > 10 * 1024 * 1024) {
-                    replyContent += `\nFile is too large to send directly. Please download from: ${process.env.UPLOADURL}/${outputFilePath}`;
+                if (isFileTooLarge) {
+                    const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
+                    const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                    replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.`;
                     await interaction.editReply({
                         content: replyContent,
                         components: []
                     });
                 } else {
+                    const fileData = fs.readFileSync(outputFilePath);
                     await interaction.editReply({
                         content: replyContent,
-                        files: [outputFilePath],
+                        files: [{ attachment: fileData, name: outputFilePath.split('/').pop() }],
                         components: []
                     });
                 }
 
-                reply.delete().catch(console.error);
+                // Delete files with appropriate delay
+                const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
+                
+                setTimeout(() => {
+                    const tempDir = './temp';
+                    const patternConv = new RegExp(`${randomName}-CONV-${rnd5dig}`);
+                    const patternConvDone = new RegExp(`${randomName}-CONVDONE-${rnd5dig}`);
+                    
+                    fs.readdirSync(tempDir).forEach(file => {
+                        if (patternConv.test(file) || patternConvDone.test(file)) {
+                            try {
+                                fs.unlinkSync(path.join(tempDir, file));
+                                console.log(`Cleaned up file: ${file}`);
+                            } catch (err) {
+                                console.error(`Error deleting file ${file}:`, err);
+                            }
+                        }
+                    });
+                    
+                    reply.delete().catch(console.error);
+                    collector.stop();
+                }, deleteDelay);
             } catch (error) {
                 await interaction.editReply({
                     content: `Error converting to ${conversionFormat}: ${error.message}`
                 });
-            } finally {
-                // Search for all files matching the pattern and clean them up
-                const tempDir = './temp';
-                const patternConv = new RegExp(`${randomName}-CONV-${rnd5dig}`);
-                const patternConvDone = new RegExp(`${randomName}-CONVDONE-${rnd5dig}`);
-                
-                fs.readdirSync(tempDir).forEach(file => {
-                    if (patternConv.test(file) || patternConvDone.test(file)) {
-                        try {
-                            fs.unlinkSync(path.join(tempDir, file));
-                            console.log(`Cleaned up file: ${file}`);
-                        } catch (err) {
-                            console.error(`Error deleting file ${file}:`, err);
-                        }
-                    }
-                });
+                collector.stop();
             }
-
-            collector.stop();
         });
 
         collector.on('end', () => {
