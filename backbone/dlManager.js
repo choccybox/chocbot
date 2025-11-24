@@ -11,29 +11,24 @@ const client = new SoundCloud.Client();
 
 const scdl = require('soundcloud-downloader').default;
 const NodeZip = require('node-zip');
-const ytdlp = require('yt-dlp-exec');
+const ytdl = require('ytdl-core');
 scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 
 async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, identifierName, convertArg, _isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
         try {
-            console.log('Downloading from YouTube using yt-dlp:', downloadLink);
+            console.log('Downloading from YouTube using ytdl-core:', downloadLink);
 
             let infoData;
             try {
-                infoData = await ytdlp(downloadLink, {
-                    dumpSingleJson: true,
-                    noWarnings: true,
-                    preferFreeFormats: true,
-                    youtubeSkipDashManifest: true
-                });
-                if (typeof infoData === 'string') infoData = JSON.parse(infoData);
+                infoData = await ytdl.getInfo(downloadLink);
             } catch (metadataErr) {
                 console.warn('Could not fetch YouTube metadata:', metadataErr.message);
+                return reject(metadataErr);
             }
 
-            const titleUrl = (infoData && infoData.title) || `${randomName}_YT_${rnd5dig}`;
-            const thumbnailUrl = infoData?.thumbnail || infoData?.thumbnails?.[0]?.url || infoData?.thumbnails?.[0] || null;
+            const titleUrl = infoData.videoDetails.title || `${randomName}_YT_${rnd5dig}`;
+            const thumbnailUrl = infoData.videoDetails.thumbnails?.[infoData.videoDetails.thumbnails.length - 1]?.url || null;
 
             const title = sanitize(titleUrl, { replacement: '_' })
                 .replace(/[^\w\s-]/g, '')
@@ -42,28 +37,32 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                 .trim()
                 .slice(0, 200);
 
-            const extension = convertArg ? 'mp3' : 'mp4';
-            const fileName = useIdentifier
-                ? `temp/${randomName}-${identifierName}-${rnd5dig}.${extension}`
-                : `temp/${title}.${extension}`;
-            const resolvedOutput = path.resolve(fileName);
+            const extension = convertArg ? 'mp4' : 'mp4';
+            const tempFileName = useIdentifier
+                ? `temp/${randomName}-${identifierName}-${rnd5dig}_temp.${extension}`
+                : `temp/${title}_temp.${extension}`;
+            
+            const finalFileName = useIdentifier
+                ? `temp/${randomName}-${identifierName}-${rnd5dig}.${convertArg ? 'mp3' : 'mp4'}`
+                : `temp/${title}.${convertArg ? 'mp3' : 'mp4'}`;
 
-            const ytdlpOptions = {
-                output: resolvedOutput,
-                format: convertArg ? 'bestaudio/best' : 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-                extractAudio: convertArg || undefined,
-                audioFormat: convertArg ? 'mp3' : undefined,
-                audioQuality: convertArg ? 0 : undefined,
-                noPart: true
-            };
+            const format = convertArg 
+                ? ytdl.chooseFormat(infoData.formats, { quality: 'highestaudio', filter: 'audioonly' })
+                : ytdl.chooseFormat(infoData.formats, { quality: 'highest', filter: format => format.hasVideo && format.hasAudio });
 
-            if (!convertArg) {
-                ytdlpOptions.mergeOutputFormat = extension;
-            }
+            const videoStream = ytdl.downloadFromInfo(infoData, { format });
+            const writeStream = fs.createWriteStream(tempFileName);
+            
+            videoStream.pipe(writeStream);
 
-            await ytdlp(downloadLink, ytdlpOptions);
+            await new Promise((res, rej) => {
+                writeStream.on('finish', res);
+                writeStream.on('error', rej);
+            });
 
             if (convertArg) {
+                await convertToMP3(tempFileName, finalFileName);
+
                 let tags = {
                     title: titleUrl || '',
                     artist: '',
@@ -120,16 +119,18 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                 }
 
                 try {
-                    NodeID3.write(tags, fileName);
+                    NodeID3.write(tags, finalFileName);
                     console.log('ID3 tags written');
                 } catch (e) {
                     console.warn('Failed to write ID3 tags:', e.message);
                 }
+            } else {
+                fs.renameSync(tempFileName, finalFileName);
             }
 
             resolve({
                 success: true,
-                filename: fileName,
+                filename: finalFileName,
                 videoTitle: title
             });
 
