@@ -1,8 +1,4 @@
 [phases.setup]
     nixPkgs = ["...", "ffmpeg", "python3"]
-
 [phases.install]
-cmds = [
-    "ln -sf $(which python3) /usr/bin/python",
-    "npm ci"
-]
+cmds = ["ln -sf $(which python3) /usr/bin/python && npm ci"]
