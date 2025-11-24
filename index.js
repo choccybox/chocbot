@@ -163,7 +163,7 @@ index.get('/', (req, res) => {
 fs.writeFileSync('./database/commands.json', JSON.stringify(commands, null, 2));
 fs.writeFileSync('./database/commandsdesc.json', JSON.stringify(quickdesc, null, 2));
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   const tempDir = path.join(__dirname, 'temp');
 
   // Create temp directory if it doesn't exist
@@ -249,10 +249,6 @@ client.once('ready', async () => {
   fs.writeFileSync('./database/usersetting.json', JSON.stringify(allUsers, null, 2));
 
   console.log(`wake yo ass up bc it's time to go beast mode`);
-});
-
-client.on('clientReady', () => {
-  console.log('Client is ready');
 });
 
 client.login(process.env.TOKEN);

@@ -11,10 +11,10 @@
   "description": "i fogro",
   "dependencies": {
     "@discordjs/rest": "^2.2.0",
-    "@distube/ytdl-core": "^4.16.10",
+    "@distube/ytdl-core": "^4.16.12",
     "@distube/ytpl": "^1.2.1",
     "@vitalets/google-translate-api": "^9.2.1",
-    "axios": "^1.6.8",
+    "axios": "^1.13.2",
     "btch-downloader": "^3.7.18",
     "canvas": "^3.2.0",
     "disconnect": "^1.2.2",
@@ -31,7 +31,7 @@
     "mime-types": "^3.0.1",
     "node-fetch": "^3.3.2",
     "node-id3": "^0.2.8",
-    "node-zip": "^1.1.1",
+    "node-zip": "^1.0.1",
     "path": "^0.12.7",
     "pretty-seconds": "^3.0.1",
     "sanitize-filename": "^1.6.3",
@@ -42,7 +42,6 @@
     "spotify-url-info": "^3.2.18",
     "text-to-image": "^7.0.1",
     "youtube-metadata-from-url": "^1.0.3",
-    "yt-dlp-exec": "^1.0.2",
-    "ytdlp-nodejs": "^2.3.5"
+    "yt-dlp-exec": "^1.0.2"
   }
 }
