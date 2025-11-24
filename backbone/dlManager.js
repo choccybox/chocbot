@@ -6,139 +6,64 @@ const NodeID3 = require('node-id3');
 const path = require('path');
 const sanitize = require('sanitize-filename');
 const SpotifyToYoutubeMusic = require('spotify-to-ytmusic');
+const SoundCloud = require("soundcloud-scraper");
+const client = new SoundCloud.Client();
+
 const scdl = require('soundcloud-downloader').default;
+const NodeZip = require('node-zip');
+const ytdlp = require('yt-dlp-exec');
 scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 
 async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, identifierName, convertArg, _isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
         try {
-            console.log('Downloading from YouTube using oceansaver API:', downloadLink);
-            
-            // Make initial API call with retry logic
-            let response;
-            let retries = 3;
-            while (retries > 0) {
-                try {
-                    // Choose format based on convertArg
-                    const format = convertArg ? 'mp3' : '1080';
-                    response = await axios.get(`https://p.oceansaver.in/ajax/download.php?format=${format}&url=${downloadLink}`, {
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Accept': 'application/json, text/plain, */*',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Accept-Encoding': 'gzip, deflate, br',
-                            'Origin': 'https://p.oceansaver.in',
-                            'Referer': 'https://p.oceansaver.in/',
-                            'Sec-Fetch-Dest': 'empty',
-                            'Sec-Fetch-Mode': 'cors',
-                            'Sec-Fetch-Site': 'same-origin',
-                            'Connection': 'keep-alive'
-                        }
-                    });
-                    break;
-                } catch (error) {
-                    if (error.response && error.response.status === 400 && retries > 1) {
-                        console.log('Received 400 error, retrying in 3s...');
-                        await new Promise(resolve => setTimeout(resolve, 3000));
-                        retries--;
-                        continue;
-                    }
-                    throw error;
-                }
+            console.log('Downloading from YouTube using yt-dlp:', downloadLink);
+
+            let infoData;
+            try {
+                infoData = await ytdlp(downloadLink, {
+                    dumpSingleJson: true,
+                    noWarnings: true,
+                    preferFreeFormats: true,
+                    youtubeSkipDashManifest: true
+                });
+                if (typeof infoData === 'string') infoData = JSON.parse(infoData);
+            } catch (metadataErr) {
+                console.warn('Could not fetch YouTube metadata:', metadataErr.message);
             }
 
-            console.log('Initial API response:', response.data);
+            const titleUrl = (infoData && infoData.title) || `${randomName}_YT_${rnd5dig}`;
+            const thumbnailUrl = infoData?.thumbnail || infoData?.thumbnails?.[0]?.url || infoData?.thumbnails?.[0] || null;
 
-            // Poll progress URL until download is ready
-            const progressUrl = response.data.progress_url;
-            const title = sanitize((response.data.title || `${randomName}_YT_${rnd5dig}`), {
-                replacement: '_'
-            })
-            .replace(/[^\w\s-]/g, '')
-            .replace(/\s+/g, '_')
-            .toLowerCase()
-            .trim()
-            .slice(0, 200);
-            let downloadUrl = null;
-            const thumbnailUrl = response.data.info.image;
-            const titleUrl = response.data.info.title;
-
-            while (!downloadUrl) {
-                let progressResponse;
-                retries = 3;
-                while (retries > 0) {
-                    try {
-                        progressResponse = await axios.get(progressUrl, {
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                'Accept': 'application/json, text/plain, */*',
-                                'Accept-Language': 'en-US,en;q=0.9',
-                                'Accept-Encoding': 'gzip, deflate, br',
-                                'Origin': 'https://p.oceansaver.in',
-                                'Referer': 'https://p.oceansaver.in/',
-                                'Sec-Fetch-Dest': 'empty',
-                                'Sec-Fetch-Mode': 'cors',
-                                'Sec-Fetch-Site': 'same-origin',
-                                'Connection': 'keep-alive'
-                            }
-                        });
-                        break;
-                    } catch (error) {
-                        if (error.response && error.response.status === 400 && retries > 1) {
-                            console.log('Received 400 error during progress check, retrying in 3s...');
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                            retries--;
-                            continue;
-                        }
-                        throw error;
-                    }
-                }
-
-                if (progressResponse.data.success === 1 && progressResponse.data.progress === 1000) {
-                    downloadUrl = progressResponse.data.download_url;
-                    break;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-            // Download the file with retry logic
-            let fileResponse;
-            retries = 3;
-            while (retries > 0) {
-                try {
-                    fileResponse = await axios({
-                        method: 'get',
-                        url: downloadUrl,
-                        responseType: 'stream'
-                    });
-                    break;
-                } catch (error) {
-                    if (error.response && error.response.status === 400 && retries > 1) {
-                        console.log('Received 400 error during file download, retrying in 3s...');
-                        await new Promise(resolve => setTimeout(resolve, 3000));
-                        retries--;
-                        continue;
-                    }
-                    throw error;
-                }
-            }
+            const title = sanitize(titleUrl, { replacement: '_' })
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '_')
+                .toLowerCase()
+                .trim()
+                .slice(0, 200);
 
             const extension = convertArg ? 'mp3' : 'mp4';
-            const fileName = useIdentifier 
+            const fileName = useIdentifier
                 ? `temp/${randomName}-${identifierName}-${rnd5dig}.${extension}`
                 : `temp/${title}.${extension}`;
+            const resolvedOutput = path.resolve(fileName);
 
-            const writer = fs.createWriteStream(fileName);
-            fileResponse.data.pipe(writer);
+            const ytdlpOptions = {
+                output: resolvedOutput,
+                format: convertArg ? 'bestaudio/best' : 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                extractAudio: convertArg || undefined,
+                audioFormat: convertArg ? 'mp3' : undefined,
+                audioQuality: convertArg ? 0 : undefined,
+                noPart: true
+            };
 
-            await new Promise((resolve, reject) => {
-                writer.on('finish', resolve);
-                writer.on('error', reject);
-            });
+            if (!convertArg) {
+                ytdlpOptions.mergeOutputFormat = extension;
+            }
 
-            // Only add tags if it's an mp3 file
+            await ytdlp(downloadLink, ytdlpOptions);
+
             if (convertArg) {
-                // Initialize tags object
                 let tags = {
                     title: titleUrl || '',
                     artist: '',
@@ -146,17 +71,14 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                     year: '',
                     genre: ''
                 };
-                
-                // Download and crop YouTube thumbnail for album art
+
                 if (thumbnailUrl) {
                     try {
-                        // Download the cover image
                         const response = await axios.get(thumbnailUrl, { responseType: 'arraybuffer' });
                         const safeTitle = titleUrl.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32) || 'cover';
                         const coverPath = path.join('temp', `${safeTitle}_cover.jpg`);
                         fs.writeFileSync(coverPath, response.data);
 
-                        // Get image dimensions using ffmpeg
                         const getImageDimensions = (filePath) => {
                             return new Promise((resolve, reject) => {
                                 ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -168,14 +90,11 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                         };
 
                         const dimensions = await getImageDimensions(coverPath);
-                        // Calculate size with 25% zoom (75% of original size)
                         const size = Math.min(dimensions.width, dimensions.height) * 0.75;
-                        // Calculate center point for cropping
                         const x = (dimensions.width - size) / 2;
                         const y = (dimensions.height - size) / 2;
                         const croppedCoverPath = path.join('temp', `${safeTitle}_cover_cropped.jpg`);
 
-                        // Crop the image into a square using ffmpeg with zoom effect
                         await new Promise((res, rej) => {
                             ffmpeg(coverPath)
                                 .outputOptions([`-vf crop=${size}:${size}:${x}:${y}`])
@@ -184,20 +103,15 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                                 .save(croppedCoverPath);
                         });
 
-                        // Read cropped image as buffer
                         const imageBuffer = fs.readFileSync(croppedCoverPath);
 
                         tags.APIC = {
                             mime: 'image/jpeg',
-                            type: {
-                                id: 3,
-                                name: 'front cover'
-                            },
+                            type: { id: 3, name: 'front cover' },
                             description: 'Cover',
                             imageBuffer
                         };
 
-                        // Clean up cover images after tagging
                         fs.unlinkSync(coverPath);
                         fs.unlinkSync(croppedCoverPath);
                     } catch (e) {
@@ -205,7 +119,6 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
                     }
                 }
 
-                // Write tags
                 try {
                     NodeID3.write(tags, fileName);
                     console.log('ID3 tags written');
@@ -217,7 +130,7 @@ async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, iden
             resolve({
                 success: true,
                 filename: fileName,
-                videoTitle: title,
+                videoTitle: title
             });
 
         } catch (err) {
@@ -231,9 +144,181 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
     return new Promise(async (resolve, reject) => {
         try {
             console.log('Downloading from SoundCloud:', sanitizedLink);
+
+            // if link includes "sets", use soundcloud-scraper to get playlist tracks
+            if (sanitizedLink.includes('/sets/')) {
+                try {
+                    const playlist = await client.getPlaylist(sanitizedLink);
+                    console.log('SoundCloud playlist info:', playlist);
+                    console.log('Number of tracks:', playlist.tracks?.length || 0);
+                    
+                    if (!playlist.tracks || playlist.tracks.length === 0) {
+                        reject(new Error('Playlist is empty or could not be fetched.'));
+                        return;
+                    }
+
+                    const playlistTitle = sanitize(playlist.title || `soundcloud_playlist_${rnd5dig}`, { replacement: '_' }).replace(/\s+/g, '_').slice(0, 100);
+                    const playlistDir = path.join('temp', playlistTitle);
+                    
+                    // Create directory for playlist
+                    if (!fs.existsSync(playlistDir)) {
+                        fs.mkdirSync(playlistDir, { recursive: true });
+                    }
+
+                    console.log(`Downloading ${playlist.tracks.length} tracks...`);
+                    
+                    // Helper function to fetch MusicBrainz metadata
+                    async function getMusicBrainzMetadata(title, artist) {
+                        try {
+                            console.log('Searching MusicBrainz for:', title, artist);
+                            const mbSearchUrl = `https://musicbrainz.org/ws/2/recording/?query=recording:"${encodeURIComponent(title)}"%20AND%20artist:"${encodeURIComponent(artist)}"&fmt=json&limit=1`;
+                            const mbResponse = await axios.get(mbSearchUrl, { headers: { 'User-Agent': 'chocbot/1.0 ( https://github.com/choccybox/chocbot )' } });
+                            const recordings = mbResponse.data.recordings;
+                            
+                            if (recordings && recordings.length > 0) {
+                                const rec = recordings[0];
+                                return {
+                                    artist: rec['artist-credit']?.[0]?.name || artist,
+                                    album_artist: rec['artist-credit']?.[0]?.name || artist,
+                                    year: rec['first-release-date'] ? rec['first-release-date'].split('-')[0] : '',
+                                    album: rec.releases?.[0]?.title || '',
+                                    TRCK: rec.releases?.[0]?.media?.[0]?.['track-offset'] || ''
+                                };
+                            }
+                            return null;
+                        } catch (err) {
+                            console.error('MusicBrainz lookup failed:', err.message);
+                            return null;
+                        }
+                    }
+                    
+                    // Download each track
+                    for (let i = 0; i < playlist.tracks.length; i++) {
+                        const track = playlist.tracks[i];
+                        console.log(`Downloading track ${i + 1}/${playlist.tracks.length}: ${track.title}`);
+                        
+                        try {
+                            const searchTitle = track.title || '';
+                            const searchArtist = track.user?.username || '';
+                            
+                            // Get MusicBrainz metadata
+                            const mbData = await getMusicBrainzMetadata(searchTitle, searchArtist);
+                            
+                            // Prepare tags
+                            let tags = {
+                                title: searchTitle,
+                                artist: mbData?.artist || searchArtist,
+                                TPE2: mbData?.album_artist || searchArtist,
+                                album: mbData?.album || '',
+                                year: mbData?.year || '',
+                                TRCK: mbData?.TRCK || '',
+                                genre: ''
+                            };
+                            
+                            const trackFileName = path.join(playlistDir, `${String(i + 1).padStart(2, '0')}_${sanitize(searchTitle, { replacement: '_' }).slice(0, 150)}.mp3`);
+                            const stream = await scdl.download(track.url);
+                            const writer = fs.createWriteStream(trackFileName);
+                            stream.pipe(writer);
+                            
+                            await new Promise((res, rej) => {
+                                writer.on('finish', res);
+                                writer.on('error', rej);
+                            });
+                            
+                            // Download and add cover art if available
+                            const coverUrl = track.artwork_url;
+                            if (coverUrl) {
+                                try {
+                                    const response = await axios.get(coverUrl, { responseType: 'arraybuffer' });
+                                    const safeTitle = searchTitle.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32) || 'cover';
+                                    const coverPath = path.join('temp', `${safeTitle}_cover_${i}.jpg`);
+                                    fs.writeFileSync(coverPath, response.data);
+
+                                    const getImageDimensions = (filePath) => {
+                                        return new Promise((resolve, reject) => {
+                                            ffmpeg.ffprobe(filePath, (err, metadata) => {
+                                                if (err) return reject(err);
+                                                const { width, height } = metadata.streams[0];
+                                                resolve({ width, height });
+                                            });
+                                        });
+                                    };
+
+                                    const dimensions = await getImageDimensions(coverPath);
+                                    const size = Math.min(dimensions.width, dimensions.height);
+                                    const croppedCoverPath = path.join('temp', `${safeTitle}_cover_cropped_${i}.jpg`);
+
+                                    await new Promise((res, rej) => {
+                                        ffmpeg(coverPath)
+                                            .outputOptions([`-vf crop=${size}:${size}`])
+                                            .on('end', res)
+                                            .on('error', rej)
+                                            .save(croppedCoverPath);
+                                    });
+
+                                    const imageBuffer = fs.readFileSync(croppedCoverPath);
+                                    tags.APIC = {
+                                        mime: 'image/jpeg',
+                                        type: { id: 3, name: 'front cover' },
+                                        description: 'Cover',
+                                        imageBuffer
+                                    };
+
+                                    fs.unlinkSync(coverPath);
+                                    fs.unlinkSync(croppedCoverPath);
+                                } catch (e) {
+                                    console.warn('Could not download or crop cover art:', e.message);
+                                }
+                            }
+                            
+                            // Write ID3 tags
+                            try {
+                                NodeID3.write(tags, trackFileName);
+                                console.log('ID3 tags written for track', i + 1);
+                            } catch (e) {
+                                console.warn('Failed to write ID3 tags:', e.message);
+                            }
+                            
+                        } catch (trackErr) {
+                            console.error(`Failed to download track ${i + 1}:`, trackErr.message);
+                        }
+                    }
+
+                    // Zip the playlist folder using node-zip
+                    const zip = new NodeZip();
+                    
+                    const files = fs.readdirSync(playlistDir);
+                    for (const file of files) {
+                        const filePath = path.join(playlistDir, file);
+                        const fileData = fs.readFileSync(filePath);
+                        zip.file(file, fileData);
+                    }
+                    
+                    const zipData = zip.generate({ base64: false, compression: 'DEFLATE' });
+                    const zipPath = path.join('temp', `${playlistTitle}.zip`);
+                    fs.writeFileSync(zipPath, zipData, 'binary');
+                    
+                    console.log(`Playlist zipped successfully`);
+                    
+                    fs.rmSync(playlistDir, { recursive: true, force: true });
+                    
+                    resolve({
+                        success: true,
+                        videoTitle: playlistTitle,
+                        filename: zipPath,
+                        isPlaylist: true
+                    });
+                    
+                } catch (err) {
+                    console.error('Error fetching SoundCloud playlist info:', err.message);
+                    reject(err);    
+                }
+                return;
+            }
             
             // Get song info using soundcloud-downloader
             const songInfo = await scdl.getInfo(sanitizedLink);
+            console.log('SoundCloud song info:', songInfo);
             
             // Extract search information for metadata
             const searchTitle = songInfo.title || '';
@@ -382,6 +467,7 @@ async function downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, i
                 resolve({
                     success: true,
                     videoTitle: searchTitle || fileName,
+                    filename: fileName,
                     isUnder10MB: fileSizeInBytes < 10 * 1024 * 1024 // Check if the file is under 10 MB
                 });
             });

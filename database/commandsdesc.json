@@ -68,5 +68,14 @@
       "trans",
       "tl"
     ]
+  },
+  "usersetting": {
+    "quickdescript": "Modify user settings",
+    "altnames": [
+      "usersettings",
+      "settings",
+      "userset",
+      "setting"
+    ]
   }
 }

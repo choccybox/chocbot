@@ -208,6 +208,46 @@ client.once('ready', async () => {
     }, 6 * 60 * 60 * 1000); // 6 hours in milliseconds
   }
 
+  // get all users in every guild and save their ids and usernames to a .json file, give each user 2 variables: tiktokwatermark (default true) and preferredaudioformat (default mp3), ignore user if bot
+  // Load existing user settings if they exist
+  const existingUsersPath = './database/usersetting.json';
+  let existingUsers = {};
+  if (fs.existsSync(existingUsersPath)) {
+    try {
+      existingUsers = JSON.parse(fs.readFileSync(existingUsersPath, 'utf-8'));
+    } catch (error) {
+      console.error('Error reading existing user settings:', error);
+    }
+  }
+
+  const allUsers = {};
+  client.guilds.cache.forEach(guild => {
+    guild.members.cache.forEach(member => {
+      if (!member.user.bot && !allUsers[member.user.id]) {
+        // Use existing settings if user already exists, otherwise use defaults
+        allUsers[member.user.id] = existingUsers[member.user.id] || {
+          username: member.user.username,
+          tiktokwatermark: false,
+          audioformat: 'mp3'
+        };
+        
+        // Set tiktokdesc based on tiktokwatermark value
+        allUsers[member.user.id].tiktokwatermarkdesc = allUsers[member.user.id].tiktokwatermark 
+          ? "watermark at the end of the video will be shown" 
+          : "watermark at the end of the video will be hidden";
+        
+        // Set audioformatdesc based on preferredaudioformat value
+        allUsers[member.user.id].audioformatdesc = `preferred audio format is ${allUsers[member.user.id].audioformat}`;
+        
+        // Update username in case it changed
+        if (existingUsers[member.user.id]) {
+          allUsers[member.user.id].username = member.user.username;
+        }
+      }
+    });
+  });
+  fs.writeFileSync('./database/usersetting.json', JSON.stringify(allUsers, null, 2));
+
   console.log(`wake yo ass up bc it's time to go beast mode`);
 });
 

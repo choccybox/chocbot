@@ -88,5 +88,17 @@
   },
   "tl": {
     "file": "translate.js"
+  },
+  "usersettings": {
+    "file": "usersetting.js"
+  },
+  "settings": {
+    "file": "usersetting.js"
+  },
+  "userset": {
+    "file": "usersetting.js"
+  },
+  "setting": {
+    "file": "usersetting.js"
   }
 }

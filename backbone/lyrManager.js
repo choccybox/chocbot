@@ -4,8 +4,8 @@ const genius = require("genius-lyrics");
 const getMetadata = require('youtube-metadata-from-url');
 const geniusClient = new genius.Client(process.env.GENIUS_TOKEN);
 const spotifySearch = require('isomorphic-unfetch')
-const soundCloud = require("soundcloud-scraper");
-const soundCloudClient = new soundCloud.Client();
+const scdl = require('soundcloud-downloader').default;
+scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 const { getAverageColor } = require('fast-average-color-node');
 const https = require('https');
 const dotenv = require('dotenv');
@@ -17,7 +17,6 @@ async function searchForLyrics(message, searchLink) {
             if (searchLink.includes('music.youtube.com')) {
                 searchLink = searchLink.replace('music.', '');
             }
-            // First install the package: npm install youtube-metadata-from-url
             return new Promise((resolve, reject) => {
                 (async () => {
                     try {
@@ -60,7 +59,7 @@ async function searchForLyrics(message, searchLink) {
             (async () => {
                 try {
                     searchLink = searchLink.split('?')[0];
-                    const searchSong = await soundCloudClient.getSongInfo(searchLink);
+                    const searchSong = await scdl.getInfo(searchLink);
                     const song = searchSong.title;
                     const artist = searchSong.author.name;
                     const result = await GeniusResult(song, artist);
