@@ -14,7 +14,7 @@ const NodeZip = require('node-zip');
 const ytdlp = require('yt-dlp-exec');
 scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 
-// Helper function to safely add reactions (works with both messages and interactions)
+// Helper function to safely add reactions (only works with messages, silently ignored for interactions)
 function safeReact(messageOrInteraction, emoji) {
     if (messageOrInteraction && typeof messageOrInteraction.react === 'function') {
         messageOrInteraction.react(emoji).catch(() => {});

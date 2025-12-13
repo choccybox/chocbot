@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');

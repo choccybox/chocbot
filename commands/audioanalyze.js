@@ -208,7 +208,7 @@ module.exports = {
 };
         
 
-async function processAudio(base64Audio, message, randomName, rnd5dig) {
+async function processAudio(base64Audio, messageOrInteraction, randomName, rnd5dig) {
     try {
         // console.log('using model:', abrmodelstomodelnames[model]);
         const deepInfraPrediction = await axios.post('https://api.deepinfra.com/v1/inference/openai/whisper-large-v3-turbo', {
@@ -220,17 +220,39 @@ async function processAudio(base64Audio, message, randomName, rnd5dig) {
 
         if (predictionRawText.length > 2000) {
             fs.writeFileSync(`./temp/${randomName}-S2T-${rnd5dig}.txt`, predictionRawText);
-            message.reply({
-                files: [`./temp/${randomName}-S2T-${rnd5dig}.txt`],
-            });
+            
+            // Handle both message and interaction
+            if (messageOrInteraction.reply) {
+                await messageOrInteraction.reply({
+                    files: [`./temp/${randomName}-S2T-${rnd5dig}.txt`],
+                });
+            } else if (messageOrInteraction.editReply) {
+                await messageOrInteraction.editReply({
+                    files: [`./temp/${randomName}-S2T-${rnd5dig}.txt`],
+                });
+            }
         } else {
-            message.reply({
-                content: predictionRawText,
-            });
+            // Handle both message and interaction
+            if (messageOrInteraction.reply) {
+                await messageOrInteraction.reply({
+                    content: predictionRawText,
+                });
+            } else if (messageOrInteraction.editReply) {
+                await messageOrInteraction.editReply({
+                    content: predictionRawText,
+                });
+            }
         }
     } catch (error) {
         console.error(error);
-        return message.reply({ content: `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**` });
+        const errorMsg = `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**`;
+        
+        // Handle both message and interaction
+        if (messageOrInteraction.reply && !messageOrInteraction.deferred) {
+            return messageOrInteraction.reply({ content: errorMsg });
+        } else if (messageOrInteraction.editReply) {
+            return messageOrInteraction.editReply({ content: errorMsg });
+        }
     } finally {
         // Wait 5 seconds before deleting files
         setTimeout(() => {
