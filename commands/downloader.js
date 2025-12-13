@@ -8,9 +8,69 @@ const fs = require('fs');
 const downloader = require('../backbone/dlManager.js');
 const { exec } = require('child_process');
 const util = require('util');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('download')
+        .setDescription('Download video/audio from social/music platforms')
+        .addStringOption(option =>
+            option.setName('url')
+                .setDescription('The URL to download from')
+                .setRequired(true))
+        .addBooleanOption(option =>
+            option.setName('audio_only')
+                .setDescription('Download audio only (default: false)')
+                .setRequired(false)),
+    
+    async execute(interaction, client) {
+        const downloadLink = interaction.options.getString('url');
+        const audioOnly = interaction.options.getBoolean('audio_only') || false;
+        
+        // Validate URL
+        if (!downloadLink.includes('http') && !downloadLink.includes('www.')) {
+            return interaction.reply({ content: 'Please provide a valid link.', ephemeral: true });
+        }
+        
+        // Check for playlist
+        if (downloadLink.toLowerCase().includes('playlist') && /(youtube\.com|youtu\.be)/i.test(downloadLink)) {
+            return interaction.reply({ content: 'Playlist support is not available yet.', ephemeral: true });
+        }
+        
+        await interaction.deferReply();
+        
+        try {
+            const randomName = interaction.user.id;
+            const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
+            const identifierName = 'DOWN';
+            
+            const response = await downloader.downloadURL(interaction, downloadLink, randomName, rnd5dig, identifierName, audioOnly).catch(error => {
+                console.error('Error sending URL to downloader.js:', error);
+                return { success: false };
+            });
+
+            if (!response.success) {
+                if (response.message) {
+                    return interaction.editReply({ content: response.message });
+                } else {
+                    return interaction.editReply({ content: `I wasn't able to download this video. The source might be unavailable or restricted.` });
+                }
+            }
+
+            console.log(response);
+
+            if (response.success) {
+                console.log('Download successful:', response);
+                // The downloader module should handle sending the file
+                // If it doesn't, we'll need to handle it here
+            }
+
+        } catch (error) {
+            console.error('Error in download command:', error);
+            return interaction.editReply({ content: 'An error occurred while downloading. Please try again.' });
+        }
+    },
+    
     run: async function handleMessage(message, client, isChained) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');

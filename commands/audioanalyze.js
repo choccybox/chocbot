@@ -7,9 +7,106 @@ const fs = require('fs');
 const axios = require('axios');
 const ffmpeg = require('fluent-ffmpeg');
 const path = require('path');
+const { SlashCommandBuilder } = require('discord.js');
 const downloader = require('../backbone/dlManager.js');
 
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('audioanalyze')
+        .setDescription('Transcribe audio/video to text using OpenAI Whisper')
+        .addStringOption(option =>
+            option.setName('url')
+                .setDescription('URL of the audio/video')
+                .setRequired(false))
+        .addAttachmentOption(option =>
+            option.setName('file')
+                .setDescription('Audio or video file to transcribe')
+                .setRequired(false)),
+    
+    async execute(interaction, client) {
+        const url = interaction.options.getString('url');
+        const attachment = interaction.options.getAttachment('file');
+        
+        if (!url && !attachment) {
+            return interaction.reply({ content: 'Please provide either a URL or an audio/video file.', ephemeral: true });
+        }
+        
+        await interaction.deferReply();
+        
+        const randomName = interaction.user.id;
+        const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
+        
+        try {
+            if (attachment) {
+                // Process attachment
+                const isVideoOrAudio = attachment.contentType && (attachment.contentType.includes('video') || attachment.contentType.includes('audio'));
+                if (!isVideoOrAudio) {
+                    return interaction.editReply({ content: 'Please provide an audio or video file to process.' });
+                }
+                
+                const fileUrl = attachment.url;
+                const contentType = attachment.contentType.split('/')[1];
+                
+                const downloadFile = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                const fileData = downloadFile.data;
+                const fileExtension = contentType === 'mpeg' ? 'mp3' : contentType;
+                const filePath = `temp/${randomName}-S2T-${rnd5dig}.${fileExtension}`;
+                const filePathConverted = `temp/${randomName}-S2T-${rnd5dig}.mp3`;
+                await fs.writeFileSync(filePath, fileData);
+            
+                if (attachment.contentType.startsWith('video/') && contentType !== 'mp3') {
+                    await new Promise((resolve, reject) => {
+                        ffmpeg(filePath)
+                            .toFormat('mp3')
+                            .on('end', resolve)
+                            .on('error', reject)
+                            .save(filePathConverted);
+                    });
+                }
+                const audioData = fs.readFileSync(filePathConverted);
+                await processAudio(audioData.toString('base64'), interaction, randomName, rnd5dig);
+                
+            } else if (url) {
+                // Process URL
+                const identifierName = 'S2T';
+                const convertArg = true;
+                const useIdentifier = true;
+
+                const response = await downloader.downloadURL(interaction, url, randomName, rnd5dig, identifierName, convertArg, useIdentifier).catch(error => {
+                    console.error('Error sending URL to downloader.js:', error);
+                    return { success: false };
+                });
+
+                if (!response.success) {
+                    return interaction.editReply({ content: `I wasn't able to download this audio. The source might be unavailable or restricted.` });
+                }
+
+                const findFile = (baseName) => {
+                    const files = fs.readdirSync('./temp/');
+                    return files.find(file => file.startsWith(baseName));
+                };
+
+                const fileName = response.title;
+                let filePath = `temp/${fileName}.mp3`;
+
+                if (!fs.existsSync(filePath)) {
+                    const foundFile = findFile(fileName);
+                    if (foundFile) {
+                        filePath = `temp/${foundFile}`;
+                    } else {
+                        return interaction.editReply({ content: 'File not found.' });
+                    }
+                }
+
+                const audioData = fs.readFileSync(filePath);
+                await processAudio(audioData.toString('base64'), interaction, randomName, rnd5dig);
+            }
+        } catch (error) {
+            console.error('Error in audioanalyze command:', error);
+            return interaction.editReply({ content: 'An error occurred while processing the audio. Please try again.' });
+        }
+    },
+    
     run: async function handleMessage(message, client, currentAttachments, isChained) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');

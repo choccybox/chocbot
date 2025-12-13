@@ -4,9 +4,127 @@ const quickdesc = 'Overlays your or specified user\'s pfp and username/nickname 
 const fs = require('fs');
 const axios = require('axios');
 const sharp = require('sharp');
+const { SlashCommandBuilder } = require('discord.js');
 const { generate } = require('text-to-image');
 
+// Helper function to generate GTA call screen
+async function generateGTACall(avatarBuffer, displayName, userName, rnd5dig) {
+    try {
+        displayName = displayName.toUpperCase();
+        
+        // Resize avatar
+        const resizedAvatar = await sharp(avatarBuffer)
+            .resize(232, 232)
+            .toBuffer();
+        const avatarPath = `temp/${userName}-AVATAR-${rnd5dig}.png`;
+        fs.writeFileSync(avatarPath, resizedAvatar);
+
+        // Generate text image for display name
+        const dataUri = await generate(displayName, {
+            debug: false,
+            maxWidth: 850,
+            fontSize: 75,
+            fontPath: 'fonts/Inter.ttf',
+            fontFamily: 'Inter 18pt',
+            fontWeight: '400',
+            bgColor: 'transparent',
+            textColor: '#b9b9bb',
+            textAlign: 'left',
+        });
+        const base64Data = dataUri.replace(/^data:image\/png;base64,/, '');
+        const textPath = `temp/${userName}-TEXT-${rnd5dig}.png`;
+        fs.writeFileSync(textPath, base64Data, 'base64');
+
+        // Overlay avatar and text onto base iFruit image
+        const outputPath = `temp/${userName}-IFRUIT-${rnd5dig}.gif`;
+        const compositeImage = await sharp('images/ifruit.png')
+            .composite([
+                { input: avatarPath, top: 444, left: 142 },
+                { input: textPath, top: 315, left: 136 }
+            ])
+            .toBuffer();
+
+        // Convert to GIF
+        await sharp(compositeImage, { animated: true })
+            .gif()
+            .toFile(outputPath);
+
+        // Cleanup temporary files
+        try {
+            fs.unlinkSync(avatarPath);
+            fs.unlinkSync(textPath);
+        } catch (err) {
+            console.error(`Failed to delete temp files:`, err);
+        }
+
+        return { success: true, filePath: outputPath };
+    } catch (error) {
+        console.error('Error generating GTA call:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('gtacall')
+        .setDescription('Create a GTA iFruit call screen with a user\'s profile picture')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('User to use for profile picture')
+                .setRequired(false))
+        .addStringOption(option =>
+            option.setName('custom_name')
+                .setDescription('Custom name to display')
+                .setRequired(false)),
+    
+    async execute(interaction, client) {
+        await interaction.deferReply();
+        
+        try {
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            const customName = interaction.options.getString('custom_name');
+            
+            // Get display name
+            let displayName = customName;
+            if (!displayName) {
+                const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                displayName = member ? member.displayName : targetUser.username;
+            }
+            
+            // Get avatar URL
+            const avatarURL = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
+            
+            // Download avatar
+            const avatarResponse = await axios.get(avatarURL, { responseType: 'arraybuffer' });
+            const avatarBuffer = Buffer.from(avatarResponse.data);
+            
+            // Process the image
+            const randomName = interaction.user.id;
+            const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
+            
+            // Generate the GTA call screen
+            const result = await generateGTACall(avatarBuffer, displayName, randomName, rnd5dig);
+            
+            if (result.success) {
+                await interaction.editReply({ files: [result.filePath] });
+                // Clean up file after sending
+                setTimeout(() => {
+                    try {
+                        fs.unlinkSync(result.filePath);
+                    } catch (err) {
+                        console.error(`Failed to delete ${result.filePath}:`, err);
+                    }
+                }, 5000);
+            } else {
+                await interaction.editReply({ content: 'Failed to generate the GTA call screen.' });
+            }
+            
+        } catch (error) {
+            console.error('Error in gtacall command:', error);
+            await interaction.editReply({ content: 'An error occurred while creating the GTA call screen.' });
+        }
+    },
+    
     run: async function handleMessage(message) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');
@@ -79,58 +197,29 @@ module.exports = {
 
             // Download and resize profile picture
             const avatarResponse = await axios.get(avatarURL, { responseType: 'arraybuffer' });
-            const resizedAvatar = await sharp(avatarResponse.data)
-                .resize(232, 232)
-                .toBuffer();
-            const avatarPath = `temp/${userName}-AVATAR-${rnd5dig}.png`;
-            fs.writeFileSync(avatarPath, resizedAvatar);
-
-            // Generate text image for display name
-            const dataUri = await generate(displayName, {
-                debug: false,
-                maxWidth: 850,
-                fontSize: 75,
-                fontPath: 'fonts/Inter.ttf',
-                fontFamily: 'Inter 18pt',
-                fontWeight: '400',
-                bgColor: 'transparent',
-                textColor: '#b9b9bb',
-                textAlign: 'left',
-            });
-            const base64Data = dataUri.replace(/^data:image\/png;base64,/, '');
-            const textPath = `temp/${userName}-TEXT-${rnd5dig}.png`;
-            fs.writeFileSync(textPath, base64Data, 'base64');
-
-            // Overlay avatar and text onto base iFruit image
-            const outputPath = `temp/${userName}-IFRUIT-${rnd5dig}.gif`;
-            const compositeImage = await sharp('images/ifruit.png')
-                .composite([
-                    { input: avatarPath, top: 444, left: 142 },
-                    { input: textPath, top: 315, left: 136 }
-                ])
-                .toBuffer();
-
-            // Convert to GIF
-            await sharp(compositeImage, { animated: true })
-                .gif()
-                .toFile(outputPath);
-
-            // Send the final image
-            message.reply({
-                files: [{ attachment: outputPath }]
-            });
-            message.reactions.removeAll().catch(console.error);
-
-            // Cleanup temporary files after 5 seconds
-            setTimeout(() => {
-                [avatarPath, textPath, outputPath].forEach(path => {
-                    try {
-                        fs.unlinkSync(path);
-                    } catch (err) {
-                        console.error(`Failed to delete ${path}:`, err);
-                    }
+            const avatarBuffer = Buffer.from(avatarResponse.data);
+            
+            // Generate the GTA call screen
+            const result = await generateGTACall(avatarBuffer, displayName, userName, rnd5dig);
+            
+            if (result.success) {
+                message.reply({
+                    files: [{ attachment: result.filePath }]
                 });
-            }, 5000);
+                message.reactions.removeAll().catch(console.error);
+
+                // Cleanup temporary files after 5 seconds
+                setTimeout(() => {
+                    try {
+                        fs.unlinkSync(result.filePath);
+                    } catch (err) {
+                        console.error(`Failed to delete ${result.filePath}:`, err);
+                    }
+                }, 5000);
+            } else {
+                message.reactions.removeAll().catch(console.error);
+                return message.reply({ content: `Error processing the image: ${result.error}` });
+            }
 
         } catch (error) {
             console.error('Error processing iFruit call:', error);

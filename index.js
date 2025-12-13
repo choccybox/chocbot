@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes, SlashCommandBuilder } = require('discord.js');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -23,6 +23,7 @@ const client = new Client({
 });
 
 const commandsList = require('./database/commands.json');
+const slashCommands = new Collection();
 
 client.on('messageCreate', async (message) => {
   const prefix = process.env.PREFIX;
@@ -88,6 +89,29 @@ client.on('messageCreate', async (message) => {
         console.error(`Error executing command ${commandName}:`, error);
         return message.reply({ content: `An error occurred while processing the command ${commandName}.` });
       }
+    }
+  }
+});
+
+// Handle slash command interactions
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = slashCommands.get(interaction.commandName);
+  if (!command) {
+    console.error(`No command matching ${interaction.commandName} was found.`);
+    return;
+  }
+
+  try {
+    await command.execute(interaction, client);
+  } catch (error) {
+    console.error(`Error executing command ${interaction.commandName}:`, error);
+    const errorMessage = { content: 'There was an error while executing this command!', ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(errorMessage);
+    } else {
+      await interaction.reply(errorMessage);
     }
   }
 });
@@ -162,6 +186,16 @@ index.get('/', (req, res) => {
 // Write the commands to a .json file
 fs.writeFileSync('./database/commands.json', JSON.stringify(commands, null, 2));
 fs.writeFileSync('./database/commandsdesc.json', JSON.stringify(quickdesc, null, 2));
+
+// Build slash commands from command files
+const slashCommandsData = [];
+commandFiles.forEach(file => {
+  const command = require(path.join(__dirname, 'commands', file));
+  if (command.data) {
+    slashCommands.set(command.data.name, command);
+    slashCommandsData.push(command.data.toJSON());
+  }
+});
 
 client.once('clientReady', async () => {
   const tempDir = path.join(__dirname, 'temp');
@@ -247,6 +281,21 @@ client.once('clientReady', async () => {
     });
   });
   fs.writeFileSync('./database/usersetting.json', JSON.stringify(allUsers, null, 2));
+
+  // Register slash commands with Discord
+  if (slashCommandsData.length > 0) {
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    try {
+      console.log(`Started refreshing ${slashCommandsData.length} application (/) commands.`);
+      const data = await rest.put(
+        Routes.applicationCommands(client.user.id),
+        { body: slashCommandsData },
+      );
+      console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+    } catch (error) {
+      console.error('Error registering slash commands:', error);
+    }
+  }
 
   console.log(`wake yo ass up bc it's time to go beast mode`);
 });

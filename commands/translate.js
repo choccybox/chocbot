@@ -3,10 +3,61 @@ const quickdesc = 'translates text from autodetected language to English, or fro
 
 const dotenv = require('dotenv');
 dotenv.config();
+const { SlashCommandBuilder } = require('discord.js');
 const { translate } = require('@vitalets/google-translate-api');
 const ISO6391 = require('iso-639-1');
 
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('translate')
+        .setDescription(quickdesc)
+        .addStringOption(option =>
+            option.setName('text')
+                .setDescription('The text to translate')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('target_language')
+                .setDescription('Target language (default: English)')
+                .setRequired(false)),
+    
+    async execute(interaction, client) {
+        const text = interaction.options.getString('text');
+        const targetLang = interaction.options.getString('target_language') || 'en';
+        
+        function getLanguageCode(input) {
+            const lowerInput = input.toLowerCase();
+            if (ISO6391.validate(lowerInput)) return lowerInput;
+            const code = ISO6391.getCode(lowerInput);
+            if (code) return code;
+            const commonAbbreviations = {
+                es: 'es','spa': 'es', fr: 'fr','fre': 'fr',
+                de: 'de','ger': 'de', it: 'it','ita': 'it',
+                pt: 'pt','por': 'pt', ru: 'ru','rus': 'ru',
+                ja: 'ja','jpn': 'ja', zh: 'zh','chi': 'zh',
+                ko: 'ko','kor': 'ko', ar: 'ar','ara': 'ar',
+                en: 'en','eng': 'en'
+            };
+            return commonAbbreviations[lowerInput] || null;
+        }
+
+        try {
+            const targetLanguage = getLanguageCode(targetLang) || 'en';
+            
+            // Detect the source language first
+            const detectionResult = await translate(text, { to: 'en' });
+            const detectedSourceLang = detectionResult.from?.language?.iso || 'auto';
+
+            // Then translate from detected source language to the chosen targetLanguage
+            const result = await translate(text, { from: detectedSourceLang, to: targetLanguage });
+
+            await interaction.reply({ content: result.text });
+
+        } catch (error) {
+            console.error('Translation error:', error);
+            await interaction.reply({ content: 'Sorry, I couldn\'t translate that text. Please try again.', ephemeral: true });
+        }
+    },
+    
     run: async function handleMessage(message, client, isChained) {
         function getLanguageCode(input) {
             const lowerInput = input.toLowerCase();

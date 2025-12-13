@@ -6,10 +6,105 @@ dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const path = require('path');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const conversionDecider = require('../backbone/convertManager.js');
 
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('convert')
+        .setDescription('Convert a file to different format')
+        .addAttachmentOption(option =>
+            option.setName('file')
+                .setDescription('The file to convert')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('format')
+                .setDescription('Target format (e.g., png, jpg, mp4, gif, mp3)')
+                .setRequired(false)),
+    
+    async execute(interaction, client) {
+        const attachment = interaction.options.getAttachment('file');
+        const targetFormat = interaction.options.getString('format');
+        
+        if (!attachment) {
+            return interaction.reply({ content: 'Please provide a file to convert.', ephemeral: true });
+        }
+        
+        await interaction.deferReply();
+        
+        try {
+            const randomName = interaction.user.id;
+            const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
+            const currentFormat = attachment.name.split('.').pop().toLowerCase();
+            const filePath = `temp/${randomName}-CONV-${rnd5dig}.${currentFormat}`;
+
+            const response = await axios({
+                method: 'get',
+                url: attachment.url,
+                responseType: 'arraybuffer'
+            });
+
+            console.log('downloading file to ' + filePath);
+            fs.writeFileSync(filePath, response.data);
+            console.log('file downloaded to ' + filePath);
+
+            const imageTypes = ['png', 'gif', 'jpg', 'jpeg', 'webp', 'svg', 'heic'];
+            const audioTypes = ['mp3', 'flac', 'wav', 'ogg', 'aac', 'm4a', 'opus', 'wma'];
+            const videoTypes = ['mp4', 'gif', 'avi', 'mov', 'wmv', 'mkv', 'webm', 'flv', 'mpeg', 'mpg', '3gp'];
+
+            let mediaType = 'unknown';
+            if (imageTypes.includes(currentFormat)) mediaType = 'image';
+            else if (audioTypes.includes(currentFormat)) mediaType = 'audio';
+            else if (videoTypes.includes(currentFormat)) mediaType = 'video';
+
+            if (mediaType === 'unknown') {
+                fs.unlinkSync(filePath);
+                return interaction.editReply({ content: 'Unsupported file type. Please provide an image, audio, or video file.' });
+            }
+
+            // If no target format specified, let user choose
+            if (!targetFormat) {
+                const availableFormats = mediaType === 'image' ? imageTypes : 
+                                       mediaType === 'audio' ? audioTypes : videoTypes;
+                
+                const buttons = availableFormats.slice(0, 5).map(format => 
+                    new ButtonBuilder()
+                        .setCustomId(`convert_${format}_${randomName}_${rnd5dig}`)
+                        .setLabel(format.toUpperCase())
+                        .setStyle(ButtonStyle.Primary)
+                );
+
+                const row = new ActionRowBuilder().addComponents(buttons);
+
+                const reply = await interaction.editReply({
+                    content: `Select a format to convert your ${mediaType} to:`,
+                    components: [row]
+                });
+
+                const collector = reply.createMessageComponentCollector({ time: 60000 });
+
+                collector.on('collect', async (buttonInteraction) => {
+                    const selectedFormat = buttonInteraction.customId.split('_')[1];
+                    await buttonInteraction.deferUpdate();
+                    
+                    await conversionDecider.convertFile(buttonInteraction, filePath, selectedFormat, randomName, rnd5dig);
+                    collector.stop();
+                });
+
+                collector.on('end', () => {
+                    interaction.editReply({ components: [] }).catch(() => {});
+                });
+            } else {
+                // Convert directly to specified format
+                await conversionDecider.convertFile(interaction, filePath, targetFormat, randomName, rnd5dig);
+            }
+
+        } catch (error) {
+            console.error('Error in convert command:', error);
+            return interaction.editReply({ content: 'An error occurred while converting the file. Please try again.' });
+        }
+    },
+    
     run: async function handleMessage(message, client, currentAttachments, isChained) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');

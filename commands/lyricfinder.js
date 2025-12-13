@@ -3,10 +3,64 @@ const quickdesc = 'Fings lyrics for a song from music platforms (YouTube, Spotif
 
 const dotenv = require('dotenv');
 dotenv.config();
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const downloader = require('../backbone/lyrManager.js');
 
 module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('lyrics')
+        .setDescription('Find lyrics for a song from music platforms')
+        .addStringOption(option =>
+            option.setName('url')
+                .setDescription('The URL of the song (YouTube, Spotify, SoundCloud)')
+                .setRequired(true)),
+    
+    async execute(interaction, client) {
+        const searchLink = interaction.options.getString('url');
+        
+        if (!searchLink.includes('http') && !searchLink.includes('www.')) {
+            return interaction.reply({ content: 'Please provide a valid URL.', ephemeral: true });
+        }
+        
+        await interaction.deferReply();
+        
+        try {
+            const response = await downloader.searchForLyrics(interaction, searchLink).catch(error => {
+                console.error('Error sending URL to downloader.js:', error);
+                return { success: false };
+            });
+
+            if (!response.success) {
+                return interaction.editReply({ content: 'Error retrieving lyrics. Please try again later.' });
+            }
+
+            if (response.success) {
+                const exampleEmbed = new EmbedBuilder()
+                    .setColor(0x0099FF)
+                    .setTitle(response.fullTitle)
+                    .setDescription(response.properLyrics)
+                    .setThumbnail(response.properImage)
+                    .addFields(
+                        { name: ' ', value: response.properMoreFrom },
+                    )
+                    .setImage(response.properImage)
+                    .setFooter({ text: response.properProvider })
+                    .setColor(response.embedColor);
+
+                if (response.trackURL) {
+                    exampleEmbed.setURL(response.trackURL);
+                }
+
+                await interaction.editReply({ embeds: [exampleEmbed] });
+            } else {
+                interaction.editReply({ content: 'Error sending URL to downloader.js.' });
+            }
+        } catch (error) {
+            console.error('Error sending URL to downloader.js:', error);
+            interaction.editReply({ content: 'Error sending URL to downloader.js.' });
+        }  
+    },
+    
     run: async function handleMessage(message, client, isChained) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');
