@@ -70,12 +70,11 @@
     ]
   },
   "usersetting": {
-    "quickdescript": "Modify user settings",
+    "quickdescript": "View and modify your personal bot settings",
     "altnames": [
-      "usersettings",
       "settings",
-      "userset",
-      "setting"
+      "setting",
+      "config"
     ]
   }
 }

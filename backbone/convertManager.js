@@ -74,7 +74,6 @@ async function conversionDecider(message, filePath, outputFilePath, conversionFo
                     resolve({ success: false, message: 'Unsupported conversion format.' });
                 }
             } else {
-                message.reactions.removeAll().catch(console.error);
                 resolve({ success: false, message: `Conversion from ${fileExtension.toUpperCase()} to ${conversionFormat.toUpperCase()} is not possible.` });
             }
         } catch (error) {

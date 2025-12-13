@@ -1,6 +1,8 @@
 const altnames = ['gtacall', 'gta', 'call', 'ifruit'];
 const quickdesc = 'Overlays your or specified user\'s pfp and username/nickname onto the GTA iFruit call screen';
 
+const dotenv = require('dotenv');
+dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const sharp = require('sharp');
@@ -119,9 +121,9 @@ module.exports = {
             message.reply({
                 files: [{ attachment: outputPath }]
             });
-            message.reactions.removeAll().catch(console.error);
 
-            // Cleanup temporary files after 5 seconds
+            // Cleanup temporary files (keep 5 seconds for this type of file)
+            const deleteDelay = 5000;
             setTimeout(() => {
                 [avatarPath, textPath, outputPath].forEach(path => {
                     try {
@@ -130,7 +132,7 @@ module.exports = {
                         console.error(`Failed to delete ${path}:`, err);
                     }
                 });
-            }, 5000);
+            }, deleteDelay);
 
         } catch (error) {
             console.error('Error processing iFruit call:', error);

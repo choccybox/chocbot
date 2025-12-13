@@ -24,7 +24,7 @@ module.exports = {
         }
 
         const hasAttachment = currentAttachments || message.attachments;
-        const firstAttachment = hasAttachment.first();
+        const firstAttachment = hasAttachment.size > 0 ? (hasAttachment instanceof Map ? Array.from(hasAttachment.values())[0] : hasAttachment.first()) : null;
         if (!firstAttachment) {
             return message.reply({ content: 'Please provide an audio or video file to process.' });
         }
@@ -83,20 +83,24 @@ module.exports = {
             const response = await conversionDecider.conversionDecider(message, filePath, outputFilePath, conversionFormat);
 
             if (!response || !response.success) {
-                message.reactions.removeAll().catch(console.error);
                 return message.reply({ content: response?.message || 'Conversion failed. Please try again.' });
             }
 
-            message.reactions.removeAll().catch(console.error);
             const fileSize = fs.statSync(outputFilePath).size;
             const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
             
             let replyContent = `${(response.originalSize / 1024).toFixed(2)} KB -> ${(response.newSize / 1024).toFixed(2)} KB (${response.sizeChangeDirection}${Math.abs(response.sizeDifferenceBits / 1024).toFixed(2)} KB/${response.sizeChangeDirection}${Math.abs(response.sizeDifferencePercentage).toFixed(2)}%)\n`;
             
+            // Use env variable for delete timeout, default to 5 minutes for large files, 30 seconds for small files
+            const deleteDelay = isFileTooLarge 
+                ? (parseInt(process.env.FILE_DELETE_TIMEOUT) || 300000) 
+                : 30000;
+            const deleteMinutes = Math.floor(deleteDelay / 60000);
+            
             if (isFileTooLarge) {
                 const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
                 const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
-                replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.`;
+                replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in ${deleteMinutes} minutes.`;
                 await message.reply({ content: replyContent });
             } else {
                 const fileData = fs.readFileSync(outputFilePath);
@@ -107,7 +111,6 @@ module.exports = {
             }
 
             // Delete files with appropriate delay
-            const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
             
             setTimeout(() => {
                 const tempDir = './temp';
@@ -183,20 +186,24 @@ module.exports = {
                 const response = await conversionDecider.conversionDecider(message, filePath, outputFilePath, conversionFormat);
 
                 if (!response || !response.success) {
-                    message.reactions.removeAll().catch(console.error);
                     return interaction.editReply({ content: response?.message || 'Conversion failed. Please try again.' });
                 }
 
-                message.reactions.removeAll().catch(console.error);
                 const fileSize = fs.statSync(outputFilePath).size;
                 const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
                 
                 let replyContent = `${(response.originalSize / 1024).toFixed(2)} KB -> ${(response.newSize / 1024).toFixed(2)} KB (${response.sizeChangeDirection}${Math.abs(response.sizeDifferenceBits / 1024).toFixed(2)} KB/${response.sizeChangeDirection}${Math.abs(response.sizeDifferencePercentage).toFixed(2)}%)\n`;
                 
+                // Use env variable for delete timeout (in minutes), default to 5 minutes for large files, 30 seconds for small files
+                const deleteDelay = isFileTooLarge 
+                    ? ((parseInt(process.env.FILE_DELETE_TIMEOUT) || 5) * 60000) // Convert minutes to ms
+                    : 30000;
+                const deleteMinutes = Math.floor(deleteDelay / 60000);
+                
                 if (isFileTooLarge) {
                     const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
                     const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
-                    replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.`;
+                    replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in ${deleteMinutes} minutes.`;
                     await interaction.editReply({
                         content: replyContent,
                         components: []
@@ -211,7 +218,6 @@ module.exports = {
                 }
 
                 // Delete files with appropriate delay
-                const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
                 
                 setTimeout(() => {
                     const tempDir = './temp';

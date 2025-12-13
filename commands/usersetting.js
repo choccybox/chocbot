@@ -1,123 +1,61 @@
-const altnames = ['usersettings', 'settings', 'userset', 'setting'];
-const quickdesc = 'Modify user settings';
+const altnames = ['settings', 'setting', 'config'];
+const quickdesc = 'View and modify your personal bot settings';
 
 const fs = require('fs');
-const axios = require('axios');
+const path = require('path');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
-    run: async function handleMessage(message, client, currentAttachments, isChained) {
+    run: async function handleMessage(message, client) {
         if (message.content.includes('help')) {
             const commandParts = message.content.trim().split(' ');
-            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
+            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name));
             return message.reply({
                 content: `${quickdesc}\n` +
-                    `### Description:\n`+
-                    `View and modify your personal settings\n` +
-                    `### Examples:\n\`${commandUsed}\`\n` +
+                    `### Example:\n\`${commandUsed}\`\n` +
                     `### Aliases:\n\`${altnames.join(', ')}\``,
             });
         }
 
-        try {
-            // Read user settings from database
-            let userSettings = {};
-            const dbPath = './database/usersetting.json';
-            
-            if (!fs.existsSync(dbPath)) {
-                return message.reply({ content: 'No user settings database found.' });
-            }
-
-            const data = fs.readFileSync(dbPath, 'utf8');
-            userSettings = JSON.parse(data);
-
-            const userId = message.author.id;
-            const currentSettings = userSettings[userId];
-
-            if (!currentSettings || Object.keys(currentSettings).length === 0) {
-                return message.reply({ content: 'No settings found for your user.' });
-            }
-
-            // Filter settings to only include those with descriptions
-            const validSettings = Object.keys(currentSettings).filter(key => 
-                !key.endsWith('desc') && currentSettings.hasOwnProperty(key + 'desc')
-            );
-
-            if (validSettings.length === 0) {
-                return message.reply({ content: 'No displayable settings found for your user.' });
-            }
-
-            // Dynamically create toggle buttons based on valid settings
-            const buttons = validSettings.map(key => {
-                const value = currentSettings[key];
-                return new ButtonBuilder()
-                    .setCustomId(`toggle_${key}_${userId}`)
-                    .setLabel(`${key}: ${value ? 'ON' : 'OFF'}`)
-                    .setStyle(value ? ButtonStyle.Success : ButtonStyle.Secondary);
-            });
-
-            const row = new ActionRowBuilder().addComponents(buttons);
-
-            // Create content display with descriptions from file
-            const contentLines = validSettings.map(key => {
-                const value = currentSettings[key];
-                const description = currentSettings[key + 'desc'];
-                return `• **${key}**: \`${value ? 'Enabled' : 'Disabled'}\`\n  ↳ ${description}`;
-            });
-
-            const reply = await message.reply({
-                content: `**Your Current Settings:**\n${contentLines.join('\n\n')}`,
-                components: [row]
-            });
-
-            // Button interaction collector
-            const collector = reply.createMessageComponentCollector({ time: 60000 });
-
-            collector.on('collect', async (interaction) => {
-                if (!interaction.customId.endsWith(userId)) {
-                    return interaction.reply({ content: 'These are not your settings!', ephemeral: true });
-                }
-
-                // Extract setting key from custom ID
-                const settingKey = interaction.customId.replace(`toggle_`, '').replace(`_${userId}`, '');
-                
-                // Toggle the setting
-                currentSettings[settingKey] = !currentSettings[settingKey];
-
-                // Save to file
-                userSettings[userId] = currentSettings;
-                fs.writeFileSync(dbPath, JSON.stringify(userSettings, null, 2), 'utf8');
-
-                // Update buttons
-                const updatedButtons = validSettings.map(key => {
-                    const value = currentSettings[key];
-                    return new ButtonBuilder()
-                        .setCustomId(`toggle_${key}_${userId}`)
-                        .setLabel(`${key}: ${value ? 'ON' : 'OFF'}`)
-                        .setStyle(value ? ButtonStyle.Success : ButtonStyle.Secondary);
-                });
-
-                const updatedRow = new ActionRowBuilder().addComponents(updatedButtons);
-
-                const updatedContentLines = validSettings.map(key => {
-                    const value = currentSettings[key];
-                    const description = currentSettings[key + 'desc'];
-                    return `• **${key}**: \`${value ? 'Enabled' : 'Disabled'}\`\n  ↳ ${description}`;
-                });
-
-                await interaction.update({
-                    content: `**Your Current Settings:**\n${updatedContentLines.join('\n\n')}`,
-                    components: [updatedRow]
-                });
-            });
-
-            collector.on('end', () => {
-                reply.edit({ components: [] }).catch(() => {});
-            });
-
-        } catch (error) {
-            console.error('Error reading user settings:', error);
-            return message.reply({ content: 'Error loading settings. Please try again.' });
+        const userId = message.author.id;
+        const settingsPath = path.join(__dirname, '../database/usersetting.json');
+        
+        // Load user settings
+        let userSettings = {};
+        if (fs.existsSync(settingsPath)) {
+            userSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
         }
+        
+        // Initialize user settings if not exists
+        if (!userSettings[userId]) {
+            userSettings[userId] = {
+                tiktokwatermark: true,
+                preferredaudioformat: 'mp3'
+            };
+            fs.writeFileSync(settingsPath, JSON.stringify(userSettings, null, 2));
+        }
+        
+        const currentSettings = userSettings[userId];
+        
+        // Create buttons for settings
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`tiktok_watermark_${userId}`)
+                    .setLabel(`TikTok Watermark: ${currentSettings.tiktokwatermark ? 'ON' : 'OFF'}`)
+                    .setStyle(currentSettings.tiktokwatermark ? ButtonStyle.Success : ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId(`audio_format_${userId}`)
+                    .setLabel(`Audio Format: ${currentSettings.preferredaudioformat.toUpperCase()}`)
+                    .setStyle(ButtonStyle.Primary)
+            );
+        
+        return message.reply({
+            content: '⚙️ **Your Bot Settings**\n\n' +
+                `TikTok Watermark: **${currentSettings.tiktokwatermark ? 'Enabled' : 'Disabled'}**\n` +
+                `Preferred Audio Format: **${currentSettings.preferredaudioformat.toUpperCase()}**\n\n` +
+                `Click the buttons below to toggle settings:`,
+            components: [row]
+        });
     }
 };

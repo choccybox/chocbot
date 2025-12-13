@@ -65,7 +65,6 @@ module.exports = {
                     }
 
                     await message.reply({ embeds: [exampleEmbed] });
-                    message.reactions.removeAll().catch(console.error);
                 } else {
                     message.reply({ content: 'Error sending URL to downloader.js.' });
                 }

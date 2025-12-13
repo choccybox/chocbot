@@ -1,6 +1,8 @@
 const altnames = ['rj', 'rio', 'riodejaneiro', 'rjd', 'rdj'];
 const quickdesc = 'Adds a Rio De Janeiro instagram filter over image/video';
 
+const dotenv = require('dotenv');
+dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const sharp = require('sharp');
@@ -204,7 +206,6 @@ async function overlayImageAndText(width, height, fontSize, fontPath, originalAt
             attachment: finalFilePath
             }]
         });
-        message.reactions.removeAll().catch(console.error);
 
     } catch (error) {
         console.error('Error overlaying image and text:', error);
@@ -224,9 +225,13 @@ async function overlayImageAndText(width, height, fontSize, fontPath, originalAt
         const finalFilePath = `temp/${finalFile}`
         const finalFileSize = fs.statSync(finalFilePath).size; // in bytes
         
+        // Use env variable for large files, 5 seconds for small files
+        const deleteDelay = finalFileSize < 10 * 1024 * 1024 
+            ? 5000 
+            : (parseInt(process.env.FILE_DELETE_TIMEOUT) || 300000);
+        
         filesToDelete.forEach((file) => {
             const filePath = `./temp/${file}`;
-            const deleteDelay = finalFileSize < 10 * 1024 * 1024 ? 5000 : 300000; // 5 seconds for small files, 5 minutes for large files
             setTimeout(() => {
             try {
                 fs.unlinkSync(filePath);

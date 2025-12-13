@@ -89,16 +89,13 @@
   "tl": {
     "file": "translate.js"
   },
-  "usersettings": {
-    "file": "usersetting.js"
-  },
   "settings": {
     "file": "usersetting.js"
   },
-  "userset": {
+  "setting": {
     "file": "usersetting.js"
   },
-  "setting": {
+  "config": {
     "file": "usersetting.js"
   }
 }

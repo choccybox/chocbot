@@ -38,15 +38,27 @@ module.exports = {
 
         if (!hasContent && !hasLinks) {
             return message.reply({ content: 'Please provide a valid link.' });
-        } else if (
-            hasLinks &&
-            message.content.toLowerCase().includes('playlist') &&
-            /(youtube\.com|youtu\.be)/i.test(message.content)
-        ) {
-            return message.reply({ content: 'playlist support is not available yet.' });   
         } else {
             try {
-                const downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
+                let downloadLink = message.content.match(/(https?:\/\/[^\s]+)/g)[0];
+                
+                // Check if it's a YouTube playlist URL - if so, keep it as is
+                const isPlaylist = downloadLink.includes('list=') || downloadLink.includes('/playlist');
+                
+                // Only sanitize YouTube URLs if they're NOT playlists
+                if (!isPlaylist && (downloadLink.includes('youtube.com') || downloadLink.includes('youtu.be'))) {
+                    const urlObj = new URL(downloadLink);
+                    if (urlObj.hostname.includes('youtube.com')) {
+                        const videoId = urlObj.searchParams.get('v');
+                        if (videoId) {
+                            downloadLink = `https://www.youtube.com/watch?v=${videoId}`;
+                        }
+                    } else if (urlObj.hostname.includes('youtu.be')) {
+                        const videoId = urlObj.pathname.slice(1).split('?')[0];
+                        downloadLink = `https://www.youtube.com/watch?v=${videoId}`;
+                    }
+                }
+                
                 const randomName = message.author.id;
                 const rnd5dig = Math.floor(Math.random() * 90000) + 10000;
                 const identifierName = 'DOWN';
@@ -62,10 +74,15 @@ module.exports = {
                 });
 
                 if (!response.success) {
-                    message.reactions.removeAll().catch(console.error);
                     if (response.message) {
+                        if (message.editReply) {
+                            return message.editReply({ content: `❌ ${response.message}` });
+                        }
                         return message.reply({ content: response.message });
                     } else {
+                        if (message.editReply) {
+                            return message.editReply({ content: `❌ I wasn't able to download this video. The source might be unavailable or restricted.` });
+                        }
                         return message.reply({ content: `I wasn't able to download this video. The source might be unavailable or restricted.` });
                     }
                 }
@@ -74,7 +91,52 @@ module.exports = {
 
                 if (response.success) {
                     console.log('Download successful:', response);
-                    message.reactions.removeAll().catch(console.error);
+                    
+                    // Handle playlist downloads (zip files)
+                    if (response.isPlaylist) {
+                        const fileName = response.title;
+                        const filePath = `temp/${fileName}.zip`;
+                        
+                        if (!fs.existsSync(filePath)) {
+                            if (message.editReply) {
+                                return message.editReply({ content: '❌ Playlist file not found.' });
+                            }
+                            return message.reply({ content: 'Playlist file not found.' });
+                        }
+                        
+                        const fileSize = fs.statSync(filePath).size;
+                        const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+                        
+                        // Always provide download link instead of uploading
+                        const encodedFileName = encodeURIComponent(`${fileName}.zip`).replace(/%20/g, ' ');
+                        const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                        
+                        const deleteDelay = (parseInt(process.env.FILE_DELETE_TIMEOUT) || 30) * 60000; // Convert minutes to milliseconds
+                        const deleteMinutes = Math.floor(deleteDelay / 60000);
+                        
+                        const downloadMessage = `✅ **Playlist downloaded successfully!**\n\n` +
+                            `📦 **File:** ${fileName}.zip\n` +
+                            `📊 **Size:** ${fileSizeMB} MB\n` +
+                            `🔗 **Download:** [Click here](${fileUrl})\n\n` +
+                            `⏰ File will be deleted in ${deleteMinutes} minutes.`;
+                        
+                        if (message.editReply) {
+                            await message.editReply({ content: downloadMessage });
+                        } else {
+                            await message.reply({ content: downloadMessage });
+                        }
+                        
+                        // Delete zip file after timeout
+                        setTimeout(() => {
+                            if (fs.existsSync(filePath)) {
+                                fs.unlinkSync(filePath);
+                                console.log(`Deleted: ${filePath}`);
+                            }
+                        }, deleteDelay);
+                        
+                        return;
+                    }
+                    
                     // check if file exists in temp folder
                     const findFile = (baseName) => {
                         const files = fs.readdirSync('./temp/');
@@ -92,6 +154,9 @@ module.exports = {
                             filePath = `temp/${foundFile}`;
                             originalFilePath = filePath;
                         } else {
+                            if (message.editReply) {
+                                return message.editReply({ content: '❌ File not found.' });
+                            }
                             return message.reply({ content: 'File not found.' });
                         }
                     }
@@ -186,20 +251,29 @@ module.exports = {
 
 
                     const fileSize = fs.statSync(filePath).size;
-                    const isFileTooLarge = fileSize >= 10 * 1024 * 1024; // 10 MB
+                    const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
                     
-                    if (!isFileTooLarge) {
-                        const fileData = fs.readFileSync(filePath);
-                        await message.reply({ files: [{ attachment: fileData, name: filePath.split('/').pop() }] });
+                    const deleteDelay = (parseInt(process.env.FILE_DELETE_TIMEOUT) || 30) * 60000; // Convert minutes to milliseconds
+                    const deleteMinutes = Math.floor(deleteDelay / 60000);
+                    
+                    // Always provide download link instead of uploading
+                    const encodedFileName = encodeURIComponent(filePath.split('/').pop()).replace(/%20/g, ' ');
+                    const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                    const displayName = filePath.split('/').pop();
+                    
+                    const downloadMessage = `✅ **Download complete!**\n\n` +
+                        `📁 **File:** ${displayName}\n` +
+                        `📊 **Size:** ${fileSizeMB} MB\n` +
+                        `🔗 **Download:** [Click here](${fileUrl})\n\n` +
+                        `⏰ File will be deleted in ${deleteMinutes} minutes.`;
+                    
+                    if (message.editReply) {
+                        await message.editReply({ content: downloadMessage });
                     } else {
-                        const encodedFileName = encodeURIComponent(filePath.split('/').pop()).replace(/%20/g, ' ');
-                        const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
-                        await message.reply({ content: `File is too large to send. You can download it from [here](${fileUrl}).\nYour file will be deleted from the servers in 5 minutes.` });
+                        await message.reply({ content: downloadMessage });
                     }
-                    message.reactions.removeAll().catch(console.error);
 
-                    // Delete files with appropriate delay
-                    const deleteDelay = isFileTooLarge ? 300000 : 30000; // 5 minutes or 30 seconds
+                    // Delete files after timeout
                     
                     // Delete original video file
                     if (fs.existsSync(originalFilePath)) {
@@ -221,11 +295,19 @@ module.exports = {
                         }, deleteDelay);
                     }
                 } else {
-                    message.reply({ content: 'Error sending URL to downloader.js.' });
+                    if (message.editReply) {
+                        await message.editReply({ content: '❌ Error sending URL to downloader.' });
+                    } else {
+                        message.reply({ content: 'Error sending URL to downloader.js.' });
+                    }
                 }
             } catch (error) {
                 console.error('Error sending URL to downloader.js:', error);
-                message.reply({ content: 'Error sending URL to downloader.js.' });
+                if (message.editReply) {
+                    await message.editReply({ content: '❌ Error processing download request.' });
+                } else {
+                    message.reply({ content: 'Error sending URL to downloader.js.' });
+                }
             }
         }
     }

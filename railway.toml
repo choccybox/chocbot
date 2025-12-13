@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["...", "ffmpeg", "python3"]
+
+[build.nixpacksPlan.phases.install]
+cmds = ["ln -sf $(which python3) /usr/bin/python && npm ci"]
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3

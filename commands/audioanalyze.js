@@ -11,18 +11,14 @@ const downloader = require('../backbone/dlManager.js');
 
 module.exports = {
     run: async function handleMessage(message, client, currentAttachments, isChained) {
-        if (message.content.includes('help')) {
-            const commandParts = message.content.trim().split(' ');
-            const commandUsed = altnames.find(name => commandParts.some(part => part.endsWith(name) || part === name))
-            return message.reply({
-                content: `${quickdesc}\n` +
-                    `### Examples:\n\`${commandUsed} https://www.youtube.com/watch?v=dQw4w9WgXcQ\` \`${commandUsed} attachment\`\n` +
-                    `### Aliases:\n\`${altnames.join(', ')}\``,
-            });
-        }
         const hasAttachment = currentAttachments || message.attachments;
-        const firstAttachment = hasAttachment.first();
+        const firstAttachment = hasAttachment && hasAttachment.size > 0 ? Array.from(hasAttachment.values())[0] : null;
         const hasALink = message.content.includes('http') || message.content.includes('www.');
+        
+        if (!hasALink && !firstAttachment) {
+            return message.reply({ content: 'Please provide an audio/video file or URL to transcribe.' });
+        }
+        
         if (!hasALink) {
             console.log('doesnt have a link, using attachment');
             const isVideoOrAudio = firstAttachment && (firstAttachment.contentType.includes('video') || firstAttachment.contentType.includes('audio'));
@@ -37,7 +33,11 @@ module.exports = {
             // react to the message to show that the bot is processing the audio
             message.react('🔽');
     
-            const downloadFile = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+            const downloadFile = await axios.get(fileUrl, { 
+                responseType: 'arraybuffer',
+                timeout: 30000,
+                maxRedirects: 5
+            });
             const fileData = downloadFile.data;
             const fileExtension = contentType === 'mpeg' ? 'mp3' : contentType;
             const filePath = `temp/${randomName}-S2T-${rnd5dig}.${fileExtension}`;
@@ -55,14 +55,14 @@ module.exports = {
                     });
                 }
                 const audioData = fs.readFileSync(filePathConverted);
-                message.reactions.removeAll().catch(console.error);
                 message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
-                await processAudio(audioData.toString('base64'), message, randomName, rnd5dig);
-                message.reactions.removeAll().catch(console.error);
+                const result = await processAudio(audioData.toString('base64'), message, randomName, rnd5dig);
+                return result;
 
             } catch (error) {
                 console.error('Error processing:', error);
-                return { attachments: null, error: 'Error processing the file.' };
+                await message.reply({ content: 'Error processing the file.' });
+                return { success: false };
             }
         }
         } else {
@@ -83,28 +83,27 @@ module.exports = {
                 console.log(response);
 
                 if (response.success === false) {
-                    message.reactions.removeAll().catch(console.error);
-                    message.reply({ content: response.message });
-                    return;
+                    await message.reply({ content: response.message });
+                    return { success: false };
                 } else if (response.success) {
                     const filePathConverted = `temp/${randomName}-S2T-${rnd5dig}.mp3`;
                     if (!fs.existsSync(filePathConverted)) {
-                        message.reply({ content: 'Audio file not found after download/conversion.' });
-                        return;
+                        await message.reply({ content: 'Audio file not found after download/conversion.' });
+                        return { success: false };
                     }
                     const audioData = fs.readFileSync(filePathConverted);
                     const base64Audio = audioData.toString('base64');
-                    message.reactions.removeAll().catch(console.error);
                     message.react('<a:pukekospin:1311021344149868555>').catch(() => message.react('👍'));
-                    await processAudio(base64Audio, message, randomName, rnd5dig);
-                    message.reactions.removeAll().catch(console.error);
+                    const result = await processAudio(base64Audio, message, randomName, rnd5dig);
+                    return result;
                 } else {
-                    message.reactions.removeAll().catch(console.error);
-                    message.reply({ content: response.message });
-                } 
+                    await message.reply({ content: response.message });
+                    return { success: false };
+                }
             } catch (error) {
                 console.error('Error sending URL to downloader.js:', error);
-                message.reply({ content: 'Error sending URL to downloader.js.' });
+                await message.reply({ content: 'Error sending URL to downloader.js.' });
+                return { success: false };
             }
         }
     }
@@ -113,29 +112,41 @@ module.exports = {
 
 async function processAudio(base64Audio, message, randomName, rnd5dig) {
     try {
-        // console.log('using model:', abrmodelstomodelnames[model]);
-        const deepInfraPrediction = await axios.post('https://api.deepinfra.com/v1/inference/openai/whisper-large-v3-turbo', {
-            audio: base64Audio,
-            authorization: process.env.DEEPINFRA_TOKEN,
-        });
+        const deepInfraPrediction = await axios.post('https://api.deepinfra.com/v1/inference/openai/whisper-large-v3-turbo', 
+            {
+                audio: base64Audio
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${process.env.DEEPINFRA_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 60000,
+                maxRedirects: 5
+            }
+        );
 
         const predictionRawText = deepInfraPrediction.data.text;
 
         if (predictionRawText.length > 2000) {
             fs.writeFileSync(`./temp/${randomName}-S2T-${rnd5dig}.txt`, predictionRawText);
-            message.reply({
+            await message.reply({
                 files: [`./temp/${randomName}-S2T-${rnd5dig}.txt`],
             });
         } else {
-            message.reply({
+            await message.reply({
                 content: predictionRawText,
             });
         }
+        
+        return { success: true }; // Signal that command completed successfully
     } catch (error) {
         console.error(error);
-        return message.reply({ content: `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**` });
+        await message.reply({ content: `error occured, the model may not be available or partial outage on providers side. here's what i know:\n**error message: ${error.response?.status || 'unknown'} ${error.response?.data?.detail || 'No detail available'}**` });
+        return { success: false };
     } finally {
-        // Wait 5 seconds before deleting files
+        // Wait before deleting files using env variable (default 5 seconds for this type)
+        const deleteDelay = 5000; // Keep 5 seconds for audio analysis temp files
         setTimeout(() => {
             // Search for all files matching the pattern and clean them up
             const tempDir = './temp';
@@ -151,6 +162,6 @@ async function processAudio(base64Audio, message, randomName, rnd5dig) {
                     }
                 }
             });
-        }, 5000); // 5000 milliseconds = 5 seconds
+        }, deleteDelay);
     }
 }
