@@ -14,6 +14,13 @@ const NodeZip = require('node-zip');
 const ytdlp = require('yt-dlp-exec');
 scdl.setClientID(process.env.SOUNDCLOUD_CLIENT_ID);
 
+// Helper function to safely add reactions (works with both messages and interactions)
+function safeReact(messageOrInteraction, emoji) {
+    if (messageOrInteraction && typeof messageOrInteraction.react === 'function') {
+        messageOrInteraction.react(emoji).catch(() => {});
+    }
+}
+
 async function downloadYoutube(_message, downloadLink, randomName, rnd5dig, identifierName, convertArg, _isMusic, useIdentifier) {
     return new Promise(async (resolve, reject) => {
         try {
@@ -578,7 +585,7 @@ async function convertToMP3(input, output) {
 async function downloadURL(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, useIdentifier) {
     try {
         if (/youtube\.com|youtu\.be|music\.youtube\.com/.test(downloadLink)) {
-            message.react('🔽').catch()
+            safeReact(message, '🔽')
             if (downloadLink.includes('music.youtube.com')) {
                 downloadLink = downloadLink.replace('music.', '');
                 const result = await downloadYoutube(message, downloadLink, randomName, rnd5dig, identifierName, convertArg, isMusic = true, useIdentifier);
@@ -592,7 +599,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
                 : { success: false, message: result.message };
             }
         } else if (/twitter\.com|t\.co|x\.com|fxtwitter\.com|stupidpenisx\.com/.test(downloadLink)) {
-            message.react('🔽').catch();
+            safeReact(message, '🔽');
             // Convert fxtwitter and stupidpenisx URLs to twitter.com
             let twitterUrl = downloadLink;
             if (downloadLink.includes('fxtwitter.com')) {
@@ -646,7 +653,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
             }
             return { success: true, title };
         } else if (/instagram\.com/.test(downloadLink)) {
-            message.react('🔽').catch();
+            safeReact(message, '🔽');
             const data = await igdl(downloadLink);
             const downloadUrl = data[0].url;
             console.log(data);
@@ -686,7 +693,7 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
             }
             return { success: true, title };
         } else if (/tiktok\.com/.test(downloadLink)) {
-            message.react('🔽').catch();
+            safeReact(message, '🔽');
             const data = await ttdl(downloadLink);
             const downloadUrl = data.video[0];
             console.log(data);
@@ -731,14 +738,14 @@ async function downloadURL(message, downloadLink, randomName, rnd5dig, identifie
             }
             return { success: true, title };
         } else if (/soundcloud\.com/.test(downloadLink)) {
-            message.react('🔽').catch()
+            safeReact(message, '🔽')
             const sanitizedLink = downloadLink.split('?')[0];
             const result = await downloadSoundCloud(message, sanitizedLink, randomName, rnd5dig, identifierName, useIdentifier);
             return result.success 
                 ? { success: true, title: result.videoTitle }
                 : { success: false, message: result.message };
         } else if (/spotify\.com/.test(downloadLink)) {
-            message.react('🔽').catch()
+            safeReact(message, '🔽')
             const result = await downloadSpotify(message, downloadLink, randomName, rnd5dig, identifierName, useIdentifier);
             return result.success 
                 ? { success: true, title: result.videoTitle }

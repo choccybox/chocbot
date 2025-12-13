@@ -87,7 +87,42 @@ module.exports = {
                     const selectedFormat = buttonInteraction.customId.split('_')[1];
                     await buttonInteraction.deferUpdate();
                     
-                    await conversionDecider.convertFile(buttonInteraction, filePath, selectedFormat, randomName, rnd5dig);
+                    const outputFilePath = `temp/${randomName}-CONVDONE-${rnd5dig}.${selectedFormat}`;
+                    const conversionResult = await conversionDecider.conversionDecider(buttonInteraction, filePath, outputFilePath, selectedFormat);
+                    
+                    if (!conversionResult || !conversionResult.success) {
+                        await buttonInteraction.editReply({ content: conversionResult?.message || 'Conversion failed. Please try again.', components: [] });
+                    } else {
+                        const fileSize = fs.statSync(outputFilePath).size;
+                        const isFileTooLarge = fileSize >= 10 * 1024 * 1024;
+                        
+                        let replyContent = `${(conversionResult.originalSize / 1024).toFixed(2)} KB -> ${(conversionResult.newSize / 1024).toFixed(2)} KB (${conversionResult.sizeChangeDirection}${Math.abs(conversionResult.sizeDifferenceBits / 1024).toFixed(2)} KB/${conversionResult.sizeChangeDirection}${Math.abs(conversionResult.sizeDifferencePercentage).toFixed(2)}%)`;
+                        
+                        if (isFileTooLarge) {
+                            const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
+                            const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                            replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).`;
+                            await buttonInteraction.editReply({ content: replyContent, components: [] });
+                        } else {
+                            const fileData = fs.readFileSync(outputFilePath);
+                            await buttonInteraction.editReply({
+                                content: replyContent,
+                                files: [{ attachment: fileData, name: outputFilePath.split('/').pop() }],
+                                components: []
+                            });
+                        }
+                        
+                        // Cleanup
+                        setTimeout(() => {
+                            try {
+                                fs.unlinkSync(filePath);
+                                fs.unlinkSync(outputFilePath);
+                            } catch (err) {
+                                console.error('Error cleaning up files:', err);
+                            }
+                        }, 5000);
+                    }
+                    
                     collector.stop();
                 });
 
@@ -96,7 +131,45 @@ module.exports = {
                 });
             } else {
                 // Convert directly to specified format
-                await conversionDecider.convertFile(interaction, filePath, targetFormat, randomName, rnd5dig);
+                if (targetFormat === currentFormat) {
+                    fs.unlinkSync(filePath);
+                    return interaction.editReply({ content: `File is already in ${targetFormat} format` });
+                }
+                
+                const outputFilePath = `temp/${randomName}-CONVDONE-${rnd5dig}.${targetFormat}`;
+                const conversionResult = await conversionDecider.conversionDecider(interaction, filePath, outputFilePath, targetFormat);
+                
+                if (!conversionResult || !conversionResult.success) {
+                    await interaction.editReply({ content: conversionResult?.message || 'Conversion failed. Please try again.' });
+                } else {
+                    const fileSize = fs.statSync(outputFilePath).size;
+                    const isFileTooLarge = fileSize >= 10 * 1024 * 1024;
+                    
+                    let replyContent = `${(conversionResult.originalSize / 1024).toFixed(2)} KB -> ${(conversionResult.newSize / 1024).toFixed(2)} KB (${conversionResult.sizeChangeDirection}${Math.abs(conversionResult.sizeDifferenceBits / 1024).toFixed(2)} KB/${conversionResult.sizeChangeDirection}${Math.abs(conversionResult.sizeDifferencePercentage).toFixed(2)}%)`;
+                    
+                    if (isFileTooLarge) {
+                        const encodedFileName = encodeURIComponent(outputFilePath.split('/').pop()).replace(/%20/g, ' ');
+                        const fileUrl = `${process.env.UPLOADURL}/temp/${encodedFileName}`;
+                        replyContent += `\nFile is too large to send. You can download it from [here](${fileUrl}).`;
+                        await interaction.editReply({ content: replyContent });
+                    } else {
+                        const fileData = fs.readFileSync(outputFilePath);
+                        await interaction.editReply({
+                            content: replyContent,
+                            files: [{ attachment: fileData, name: outputFilePath.split('/').pop() }]
+                        });
+                    }
+                    
+                    // Cleanup
+                    setTimeout(() => {
+                        try {
+                            fs.unlinkSync(filePath);
+                            fs.unlinkSync(outputFilePath);
+                        } catch (err) {
+                            console.error('Error cleaning up files:', err);
+                        }
+                    }, 5000);
+                }
             }
 
         } catch (error) {

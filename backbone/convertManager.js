@@ -3,6 +3,13 @@ const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
 const path = require('path');
 
+// Helper function to safely remove all reactions (works with both messages and interactions)
+function safeRemoveAllReactions(messageOrInteraction) {
+    if (messageOrInteraction && messageOrInteraction.reactions && typeof messageOrInteraction.reactions.removeAll === 'function') {
+        messageOrInteraction.reactions.removeAll().catch(console.error);
+    }
+}
+
 const conversionFunctions = {
     png: convertFile,
     jpg: convertFile,
@@ -74,7 +81,7 @@ async function conversionDecider(message, filePath, outputFilePath, conversionFo
                     resolve({ success: false, message: 'Unsupported conversion format.' });
                 }
             } else {
-                message.reactions.removeAll().catch(console.error);
+                safeRemoveAllReactions(message);
                 resolve({ success: false, message: `Conversion from ${fileExtension.toUpperCase()} to ${conversionFormat.toUpperCase()} is not possible.` });
             }
         } catch (error) {
