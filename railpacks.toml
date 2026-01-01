@@ -1,13 +1,12 @@
 [build]
-# Railpack uses nix-style packages under the 'packages' key
+# This ensures python, ffmpeg, and yt-dlp are available during 'npm ci'
 packages = [
-  "nodejs_20",
-  "ffmpeg",
+  "nodejs-20_x",
   "python3",
+  "ffmpeg",
   "yt-dlp"
 ]
 
 [deploy]
-# 'start' in nixpacks maps to 'startCommand' in railpack
+# Using 'node .' as requested in your original nixpacks config
 startCommand = "node ."
-installCommand = "npm install" # Railpack separates install from build
