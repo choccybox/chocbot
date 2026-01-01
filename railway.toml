@@ -1,8 +1,0 @@
-[build]
-builder = "NIXPACKS"
-buildCommand = "npm start"
-
-[deploy]
-startCommand = "node ."
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10

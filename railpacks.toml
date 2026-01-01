@@ -1,0 +1,13 @@
+[build]
+# Railpack uses nix-style packages under the 'packages' key
+packages = [
+  "nodejs_20",
+  "ffmpeg",
+  "python3",
+  "yt-dlp"
+]
+
+[deploy]
+# 'start' in nixpacks maps to 'startCommand' in railpack
+startCommand = "node ."
+installCommand = "npm install" # Railpack separates install from build
