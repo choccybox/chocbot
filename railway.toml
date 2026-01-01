@@ -1,0 +1,13 @@
+# railway.toml
+
+[build]
+# We force these to be available during the 'install' phase
+packages = [
+  "node@20",
+  "python@3.10",
+  "ffmpeg",
+  "yt-dlp"
+]
+
+[deploy]
+startCommand = "node ."
