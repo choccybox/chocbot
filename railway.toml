@@ -1,13 +1,14 @@
-# railway.toml
-
 [build]
-# We force these to be available during the 'install' phase
+# Define the build environment packages
 packages = [
-  "node@20",
-  "python@3.10",
-  "ffmpeg",
-  "yt-dlp"
+    "node@20", 
+    "python@3.11", 
+    "ffmpeg", 
+    "yt-dlp" 
 ]
+
+# Explicitly install python dependencies first, then node dependencies
+installCommand = "pip3 install yt-dlp && npm ci"
 
 [deploy]
 startCommand = "node ."
