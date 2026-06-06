@@ -6,7 +6,7 @@ dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const sharp = require('sharp');
-const { generate } = require('text-to-image');
+const { generate } = require('../backbone/textImage');
 const ffmpeg = require('fluent-ffmpeg');
 
 module.exports = {
@@ -141,7 +141,7 @@ async function overlayImageAndText(width, height, fontSize, fontPath, originalAt
             fs.writeFileSync(`temp/${userName}-RIOSTRETCH-${rnd5dig}.png`, overlayImage);
 
         if (useTextOverlay) {
-            // Generate text image using 'text-to-image' module
+            // Generate text image for the overlay.
             const dataUri = await generate(customizedText, {
             debug: true,
             maxWidth: width,

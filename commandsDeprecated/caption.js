@@ -6,7 +6,7 @@ const axios = require('axios');
 const dotenv = require('dotenv').config();
 const sharp = require('sharp');
 const path = require('path');
-const { generate, generateSync, ComputedOptions, Canvas } = require('text-to-image');
+const { generate } = require('../backbone/textImage');
 const ffmpeg = require('fluent-ffmpeg');
 
 module.exports = {
@@ -124,7 +124,7 @@ module.exports = {
 
 async function overlayImageAndText(message, width, fontSize, fontPath, originalAttachmentPath, userName, rnd5dig, customizedText, convertToGif, duration) {
     try {
-        // Generate text image using 'text-to-image' module
+        // Generate text image for the caption.
         const dataUri = await generate(customizedText, {
             debug: true,
             maxWidth: width,

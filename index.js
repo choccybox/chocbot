@@ -83,6 +83,27 @@ const client = new Client({
 
 const commandsList = require('./database/commands.json');
 
+function normalizeInteractionOptions(options) {
+  if (!options || typeof options !== 'object' || options.ephemeral === undefined) {
+    return options;
+  }
+
+  const normalizedOptions = { ...options };
+  if (normalizedOptions.ephemeral) {
+    normalizedOptions.flags = (normalizedOptions.flags || 0) | 64;
+  }
+  delete normalizedOptions.ephemeral;
+  return normalizedOptions;
+}
+
+function createAttachmentCollection() {
+  const attachments = new Map();
+  attachments.first = function first() {
+    return this.values().next().value;
+  };
+  return attachments;
+}
+
 // Register slash commands on startup
 async function registerSlashCommands() {
   const commands = [
@@ -339,7 +360,7 @@ client.on('interactionCreate', async (interaction) => {
           color: 0x5865F2,
           footer: { text: 'All commands are only visible to you' }
         }],
-        ephemeral: true
+        flags: 64
       });
     } else {
       // Show specific command help
@@ -347,7 +368,7 @@ client.on('interactionCreate', async (interaction) => {
       if (!help) {
         return interaction.reply({
           content: `Command \`${specificCommand}\` not found.`,
-          ephemeral: true
+          flags: 64
         });
       }
       
@@ -362,7 +383,7 @@ client.on('interactionCreate', async (interaction) => {
           ],
           color: 0x5865F2
         }],
-        ephemeral: true
+        flags: 64
       });
     }
   }
@@ -370,7 +391,7 @@ client.on('interactionCreate', async (interaction) => {
   const commandFile = commandFileMap[commandName];
 
   if (!commandFile) {
-    return interaction.reply({ content: 'Command not found!', ephemeral: true });
+    return interaction.reply({ content: 'Command not found!', flags: 64 });
   }
 
   try {
@@ -382,7 +403,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // Build content string and attachments based on command
     let contentParts = [];
-    const mockAttachments = new Map();
+    const mockAttachments = createAttachmentCollection();
 
     if (commandName === 'download') {
       const url = interaction.options.getString('url');
@@ -457,7 +478,7 @@ client.on('interactionCreate', async (interaction) => {
       editReply: async (options) => {
         try {
           hasReplied = true;
-          return await interaction.editReply(options);
+          return await interaction.editReply(normalizeInteractionOptions(options));
         } catch (error) {
           console.error('Error editing reply:', error);
           throw error;
@@ -470,7 +491,7 @@ client.on('interactionCreate', async (interaction) => {
       reply: async (options) => {
         try {
           hasReplied = true;
-          return await interaction.followUp(options);
+          return await interaction.followUp(normalizeInteractionOptions(options));
         } catch (error) {
           console.error('Error sending follow-up:', error);
           throw error;
@@ -481,7 +502,7 @@ client.on('interactionCreate', async (interaction) => {
     const result = await command.run(mockMessage, client, mockAttachments.size > 0 ? mockAttachments : null);
 
     if (result && typeof result === 'string') {
-      await interaction.followUp({ content: result }).catch(console.error);
+      await interaction.followUp({ content: result, flags: 64 }).catch(console.error);
     } else if (!hasReplied && !interaction.replied) {
       // If command didn't reply, edit the deferred reply
       await interaction.editReply({ content: 'Command executed successfully!' }).catch(console.error);
@@ -501,7 +522,7 @@ client.on('interactionCreate', async (interaction) => {
       if (interaction.deferred && !interaction.replied) {
         await interaction.editReply({ content: `An error occurred while processing the command.` });
       } else if (!interaction.replied) {
-        await interaction.reply({ content: `An error occurred while processing the command.`, ephemeral: true });
+        await interaction.reply({ content: `An error occurred while processing the command.`, flags: 64 });
       }
     } catch (replyError) {
       console.error('Failed to send error message:', replyError);
