@@ -38,48 +38,6 @@
   "freak": {
     "file": "freakyfont.js"
   },
-  "gtacall": {
-    "file": "ifruitcall.js"
-  },
-  "gta": {
-    "file": "ifruitcall.js"
-  },
-  "call": {
-    "file": "ifruitcall.js"
-  },
-  "ifruit": {
-    "file": "ifruitcall.js"
-  },
-  "lyrics": {
-    "file": "lyricfinder.js"
-  },
-  "lyric": {
-    "file": "lyricfinder.js"
-  },
-  "lyr": {
-    "file": "lyricfinder.js"
-  },
-  "genius": {
-    "file": "lyricfinder.js"
-  },
-  "gen": {
-    "file": "lyricfinder.js"
-  },
-  "rj": {
-    "file": "riodejaneiro.js"
-  },
-  "rio": {
-    "file": "riodejaneiro.js"
-  },
-  "riodejaneiro": {
-    "file": "riodejaneiro.js"
-  },
-  "rjd": {
-    "file": "riodejaneiro.js"
-  },
-  "rdj": {
-    "file": "riodejaneiro.js"
-  },
   "translate": {
     "file": "translate.js"
   },
@@ -88,14 +46,5 @@
   },
   "tl": {
     "file": "translate.js"
-  },
-  "settings": {
-    "file": "usersetting.js"
-  },
-  "setting": {
-    "file": "usersetting.js"
-  },
-  "config": {
-    "file": "usersetting.js"
   }
 }

@@ -32,49 +32,12 @@
       "freak"
     ]
   },
-  "ifruitcall": {
-    "quickdescript": "Overlays your or specified user\\'s pfp and username/nickname onto the GTA iFruit call screen",
-    "altnames": [
-      "gtacall",
-      "gta",
-      "call",
-      "ifruit"
-    ]
-  },
-  "lyricfinder": {
-    "quickdescript": "Fings lyrics for a song from music platforms (YouTube, Spotify, SoundCloud)",
-    "altnames": [
-      "lyrics",
-      "lyric",
-      "lyr",
-      "genius",
-      "gen"
-    ]
-  },
-  "riodejaneiro": {
-    "quickdescript": "Adds a Rio De Janeiro instagram filter over image/video",
-    "altnames": [
-      "rj",
-      "rio",
-      "riodejaneiro",
-      "rjd",
-      "rdj"
-    ]
-  },
   "translate": {
     "quickdescript": "translates text from autodetected language to English, or from one specified language to another.",
     "altnames": [
       "translate",
       "trans",
       "tl"
-    ]
-  },
-  "usersetting": {
-    "quickdescript": "View and modify your personal bot settings",
-    "altnames": [
-      "settings",
-      "setting",
-      "config"
     ]
   }
 }

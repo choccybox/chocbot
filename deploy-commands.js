@@ -105,6 +105,20 @@ const commands = [
       option.setName('customname')
         .setDescription('Custom name to display')
         .setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName('abquote')
+    .setDescription('Create an Anthony Bourdain quote image')
+    .addStringOption(option =>
+      option.setName('text1')
+        .setDescription('First text field')
+        .setRequired(true)
+        .setMaxLength(50))
+    .addStringOption(option =>
+      option.setName('text2')
+        .setDescription('Second text field')
+        .setRequired(true)
+        .setMaxLength(50)),
 ].map(command => command.toJSON());
 
 const rest = new REST().setToken(process.env.TOKEN);

@@ -6,6 +6,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
+    python-is-python3 \
     python3-pip \
     ca-certificates \
   && pip3 install --break-system-packages --no-cache-dir yt-dlp \

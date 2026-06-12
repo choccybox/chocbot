@@ -210,6 +210,20 @@ async function registerSlashCommands() {
         option.setName('customname')
           .setDescription('Custom name to display')
           .setRequired(false)),
+
+    new SlashCommandBuilder()
+      .setName('abquote')
+      .setDescription('Create an Anthony Bourdain quote image')
+      .addStringOption(option =>
+        option.setName('text1')
+          .setDescription('First text field')
+          .setRequired(true)
+          .setMaxLength(50))
+      .addStringOption(option =>
+        option.setName('text2')
+          .setDescription('Second text field')
+          .setRequired(true)
+          .setMaxLength(50)),
       
     new SlashCommandBuilder()
       .setName('help')
@@ -226,7 +240,8 @@ async function registerSlashCommands() {
             { name: 'lyrics', value: 'lyrics' },
             { name: 'riodejaneiro', value: 'riodejaneiro' },
             { name: 'audioanalyze', value: 'audioanalyze' },
-            { name: 'ifruit', value: 'ifruit' }
+            { name: 'ifruit', value: 'ifruit' },
+            { name: 'abquote', value: 'abquote' }
           ))
   ].map(command => command.toJSON());
 
@@ -254,7 +269,8 @@ const commandFileMap = {
   'lyrics': 'lyricfinder.js',
   'riodejaneiro': 'riodejaneiro.js',
   'audioanalyze': 'audioanalyze.js',
-  'ifruit': 'ifruitcall.js'
+  'ifruit': 'ifruitcall.js',
+  'abquote': 'imageCreation/ABQuote.js'
 };
 
 // Command help information
@@ -334,6 +350,15 @@ const commandHelp = {
       '/ifruit user:@someone customname:"Custom Name"'
     ],
     options: '**user:** User to use profile picture from\n**customname:** Custom name to display on the call screen'
+  },
+  'abquote': {
+    description: 'Create an Anthony Bourdain quote image with two custom text fields',
+    usage: '/abquote <text1> <text2>',
+    examples: [
+      '/abquote text1:"you try once" text2:"you never stop"',
+      '/abquote text1:"great meals" text2:"are worth the trip"'
+    ],
+    options: '**text1:** First text field, max 50 characters\n**text2:** Second text field, max 50 characters'
   }
 };
 
@@ -403,6 +428,8 @@ client.on('interactionCreate', async (interaction) => {
 
     // Build content string and attachments based on command
     let contentParts = [];
+    let abquoteText1 = null;
+    let abquoteText2 = null;
     const mockAttachments = createAttachmentCollection();
 
     if (commandName === 'download') {
@@ -454,6 +481,10 @@ client.on('interactionCreate', async (interaction) => {
       const customname = interaction.options.getString('customname');
       if (user) contentParts.push(`<@${user.id}>`);
       if (customname) contentParts.push(customname);
+    } else if (commandName === 'abquote') {
+      abquoteText1 = interaction.options.getString('text1');
+      abquoteText2 = interaction.options.getString('text2');
+      contentParts.push(`${abquoteText1} | ${abquoteText2}`);
     }
 
     // Create mock message object that properly wraps the interaction
@@ -466,6 +497,8 @@ client.on('interactionCreate', async (interaction) => {
       guild: interaction.guild,
       member: interaction.member,
       attachments: mockAttachments,
+      abquoteText1,
+      abquoteText2,
       mentions: {
         users: interaction.options.getUser('user') ? 
           new Map([[interaction.options.getUser('user').id, interaction.options.getUser('user')]]) : 

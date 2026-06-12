@@ -6,7 +6,7 @@ dotenv.config();
 const fs = require('fs');
 const axios = require('axios');
 const sharp = require('sharp');
-const { generate } = require('../backbone/textImage');
+const { generate } = require('../../backbone/textImage');
 
 module.exports = {
     run: async function handleMessage(message) {
