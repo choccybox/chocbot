@@ -17,7 +17,8 @@ RUN npm ci --omit=dev
 
 COPY . .
 RUN mkdir -p temp \
-  && chown -R node:node /app
+  && chown -R node:node /app \
+  && chmod 1777 temp
 
 USER node
 
