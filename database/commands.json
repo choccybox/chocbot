@@ -1,22 +1,4 @@
 {
-  "audio": {
-    "file": "audioanalyze.js"
-  },
-  "aa": {
-    "file": "audioanalyze.js"
-  },
-  "audioanalyze": {
-    "file": "audioanalyze.js"
-  },
-  "speech2text": {
-    "file": "audioanalyze.js"
-  },
-  "s2t": {
-    "file": "audioanalyze.js"
-  },
-  "stt": {
-    "file": "audioanalyze.js"
-  },
   "convert": {
     "file": "convert.js"
   },
@@ -37,6 +19,36 @@
   },
   "freak": {
     "file": "freakyfont.js"
+  },
+  "abquote": {
+    "file": "imageCreation/ABQuote.js"
+  },
+  "ifruit": {
+    "file": "imageCreation/ifruitcall.js"
+  },
+  "gtacall": {
+    "file": "imageCreation/ifruitcall.js"
+  },
+  "gta": {
+    "file": "imageCreation/ifruitcall.js"
+  },
+  "call": {
+    "file": "imageCreation/ifruitcall.js"
+  },
+  "riodejaneiro": {
+    "file": "imageCreation/riodejaneiro.js"
+  },
+  "rj": {
+    "file": "imageCreation/riodejaneiro.js"
+  },
+  "rio": {
+    "file": "imageCreation/riodejaneiro.js"
+  },
+  "rjd": {
+    "file": "imageCreation/riodejaneiro.js"
+  },
+  "rdj": {
+    "file": "imageCreation/riodejaneiro.js"
   },
   "translate": {
     "file": "translate.js"

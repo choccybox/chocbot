@@ -14,7 +14,6 @@
     "@discordjs/rest": "^2.2.0",
     "@distube/ytdl-core": "^4.16.12",
     "@distube/ytpl": "^1.2.1",
-    "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.13.2",
     "btch-downloader": "^3.7.18",
     "canvas": "^3.2.0",

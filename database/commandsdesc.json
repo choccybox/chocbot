@@ -1,15 +1,4 @@
 {
-  "audioanalyze": {
-    "quickdescript": "transcribe audio/video/links to text using openai whisper model",
-    "altnames": [
-      "audio",
-      "aa",
-      "audioanalyze",
-      "speech2text",
-      "s2t",
-      "stt"
-    ]
-  },
   "convert": {
     "quickdescript": "converts a file to different format based on uploaded file type or specified in the command.",
     "altnames": [
@@ -17,7 +6,7 @@
       "conv"
     ]
   },
-  "downloader": {
+  "download": {
     "quickdescript": "download video/audio from social/music platforms (YouTube, Twitter, Instagram, SoundCLoud, Spotify) *Spotify may not result with a correct song if its not found on youtube.*",
     "altnames": [
       "download",
@@ -25,11 +14,36 @@
       "dl"
     ]
   },
-  "freakyfont": {
+  "freaky": {
     "quickdescript": "makes your text 𝓯𝓻𝓮𝓪𝓴𝔂",
     "altnames": [
       "freaky",
       "freak"
+    ]
+  },
+  "abquote": {
+    "quickdescript": "Creates an Anthony Bourdain quote image with two custom text fields",
+    "altnames": [
+      "abquote"
+    ]
+  },
+  "ifruit": {
+    "quickdescript": "Overlays your or specified user's pfp and username/nickname onto the GTA iFruit call screen",
+    "altnames": [
+      "ifruit",
+      "gtacall",
+      "gta",
+      "call"
+    ]
+  },
+  "riodejaneiro": {
+    "quickdescript": "Adds a Rio De Janeiro instagram filter over image/video",
+    "altnames": [
+      "riodejaneiro",
+      "rj",
+      "rio",
+      "rjd",
+      "rdj"
     ]
   },
   "translate": {
