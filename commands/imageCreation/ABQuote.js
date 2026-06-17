@@ -119,14 +119,14 @@ module.exports = {
     .addStringOption((option) =>
       option
         .setName("text1")
-        .setDescription("First text field")
+        .setDescription("Once you've ...")
         .setRequired(true)
         .setMaxLength(MAX_LENGTH),
     )
     .addStringOption((option) =>
       option
         .setName("text2")
-        .setDescription("Second text field")
+        .setDescription("you'll never stop wanting to beat ... to death")
         .setRequired(true)
         .setMaxLength(MAX_LENGTH),
     ),
@@ -134,10 +134,7 @@ module.exports = {
     description:
       "Create an Anthony Bourdain quote image with two custom text fields",
     usage: "/abquote <text1> <text2>",
-    examples: [
-      '/abquote text1:"you try once" text2:"you never stop"',
-      '/abquote text1:"great meals" text2:"are worth the trip"',
-    ],
+    examples: ['/abquote text1:"used windows" text2:"Bill Gates"'],
     options:
       "**text1:** First text field, max 50 characters\n**text2:** Second text field, max 50 characters",
   },

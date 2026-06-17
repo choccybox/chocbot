@@ -8,8 +8,10 @@ const axios = require("axios");
 const { SlashCommandBuilder } = require("discord.js");
 const {
   getLanguageCode,
+  getLanguageName,
   getSupportedLanguageCodes,
   getLanguageAutocompleteChoices,
+  languageChoices,
 } = require("../backbone/translateLanguages");
 
 const configuredLibreTranslateUrl = process.env.LIBRETRANSLATE_URL;
@@ -120,10 +122,6 @@ module.exports = {
         ? { api_key: libreTranslateApiKey }
         : {};
 
-      console.log(
-        `LibreTranslate request: url=${libreTranslateUrl}, source=auto, target=${targetLanguage}`,
-      );
-
       const translationResponse = await axios.post(
         `${libreTranslateUrl}/translate`,
         {
@@ -134,9 +132,14 @@ module.exports = {
           ...basePayload,
         },
       );
+      const detectedCode = translationResponse.data.detectedLanguage.language;
+      const detectedName = getLanguageName(detectedCode) || detectedCode;
 
       return message.reply({
-        content: translationResponse.data.translatedText,
+        content:
+          translationResponse.data.translatedText +
+          "\n-# translating from: " +
+          detectedName,
       });
     } catch (error) {
       console.error("Translation error:", error);
