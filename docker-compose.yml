@@ -11,5 +11,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./temp:/app/temp
+      - chocbot-temp:/app/temp
     init: true
+
+volumes:
+  chocbot-temp:

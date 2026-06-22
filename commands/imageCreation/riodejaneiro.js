@@ -4,6 +4,7 @@ const quickdesc = "Adds a Rio De Janeiro instagram filter over image/video";
 const dotenv = require("dotenv");
 dotenv.config();
 const fs = require("fs");
+const path = require("path");
 const axios = require("axios");
 const sharp = require("sharp");
 const { generate } = require("../../backbone/textImage");
@@ -170,7 +171,14 @@ module.exports = {
       const downloadAttachment = await axios.get(attachmentURL, {
         responseType: "arraybuffer",
       });
-      let originalAttachmentPath = `temp/${userName}-RIO-${rnd5dig}.${attachmentURL.split(".").pop().split("?")[0]}`;
+      fs.mkdirSync("temp", { recursive: true });
+      const runTempDir = fs.mkdtempSync(
+        path.join("temp", `${userName}-RIO-${rnd5dig}-`),
+      );
+      let originalAttachmentPath = path.join(
+        runTempDir,
+        `original.${attachmentURL.split(".").pop().split("?")[0]}`,
+      );
       fs.writeFileSync(originalAttachmentPath, downloadAttachment.data);
 
       // Get image/video dimensions using ffprobe for text positioning
@@ -198,7 +206,7 @@ module.exports = {
       }
 
       const fontPath = "fonts/InstagramSans.ttf"; // Path to custom font file
-      const overlaidAttachmentPath = `temp/${userName}-RIOOVERLAID-${rnd5dig}.png`;
+      const overlaidAttachmentPath = path.join(runTempDir, "overlay.png");
 
       // set the font size to 1/10th of the image entire size
       const fontSize = Math.floor(Math.min(width, height) / 10);
@@ -221,6 +229,7 @@ module.exports = {
         useTextOverlay,
         extension,
         message,
+        runTempDir,
       );
       return;
     } catch (error) {
@@ -247,6 +256,7 @@ async function overlayImageAndText(
   useTextOverlay,
   extension,
   message,
+  runTempDir,
 ) {
   try {
     sharp.cache(false);
@@ -255,10 +265,11 @@ async function overlayImageAndText(
       .resize(width, height)
       .ensureAlpha(opacity)
       .toBuffer();
-    fs.writeFileSync(
-      `temp/${userName}-RIOSTRETCH-${rnd5dig}.png`,
-      overlayImage,
-    );
+    const stretchedOverlayPath = path.join(runTempDir, "stretched-overlay.png");
+    const textOverlayPath = path.join(runTempDir, "text-overlay.png");
+    const finalOutputPath = path.join(runTempDir, `final.${extension}`);
+
+    fs.writeFileSync(stretchedOverlayPath, overlayImage);
 
     if (useTextOverlay) {
       // Generate text image for the overlay.
@@ -276,17 +287,11 @@ async function overlayImageAndText(
         verticalAlign: "center",
       });
       const base64Data = dataUri.replace(/^data:image\/png;base64,/, "");
-      fs.writeFileSync(
-        `temp/${userName}-RIOTEXT-${rnd5dig}.png`,
-        base64Data,
-        "base64",
-      );
+      fs.writeFileSync(textOverlayPath, base64Data, "base64");
 
       // overlay the text image on the resized overlay image
-      const overlayedImage = await sharp(
-        `temp/${userName}-RIOSTRETCH-${rnd5dig}.png`,
-      )
-        .composite([{ input: `temp/${userName}-RIOTEXT-${rnd5dig}.png` }])
+      const overlayedImage = await sharp(stretchedOverlayPath)
+        .composite([{ input: textOverlayPath }])
         .toBuffer();
       fs.writeFileSync(overlaidAttachmentPath, overlayedImage);
     } else {
@@ -297,7 +302,7 @@ async function overlayImageAndText(
     // if file is a video, use ffmpeg to overlay the image over the video
     if (originalAttachmentPath.includes("mp4")) {
       console.log("Overlaying image on video");
-      const videoOutputPath = `temp/${userName}-RIOFINAL-${rnd5dig}.mp4`;
+      const videoOutputPath = finalOutputPath;
       await new Promise((resolve, reject) => {
         ffmpeg(originalAttachmentPath)
           .input(overlaidAttachmentPath)
@@ -321,21 +326,13 @@ async function overlayImageAndText(
       const overlayedImage = await sharp(originalAttachmentPath)
         .composite([{ input: overlaidAttachmentPath }])
         .toBuffer();
-      fs.writeFileSync(
-        `temp/${userName}-RIOFINAL-${rnd5dig}.png`,
-        overlayedImage,
-      );
+      fs.writeFileSync(finalOutputPath, overlayedImage);
     }
 
-    const finalFile = fs
-      .readdirSync("./temp/")
-      .find((file) => file.includes(`RIOFINAL-${rnd5dig}`));
-    const finalFilePath = `temp/${finalFile}`;
-
-    message.reply({
+    await message.reply({
       files: [
         {
-          attachment: finalFilePath,
+          attachment: finalOutputPath,
         },
       ],
     });
@@ -343,39 +340,34 @@ async function overlayImageAndText(
     console.error("Error overlaying image and text:", error);
     throw new Error("Error overlaying image and text");
   } finally {
-    // Cleanup temporary files
-    const filesToDelete = fs.readdirSync("./temp/").filter((file) => {
-      return (
-        file.includes(`RIO-${rnd5dig}`) ||
-        file.includes(`RIOFINAL-${rnd5dig}`) ||
-        file.includes(`RIOOVERLAID-${rnd5dig}`) ||
-        file.includes(`RIOSTRETCH-${rnd5dig}`) ||
-        file.includes(`RIOTEXT-${rnd5dig}`)
-      );
-    });
+    const finalOutputPath = path.join(runTempDir, `final.${extension}`);
+    const finalFileSize = fs.existsSync(finalOutputPath)
+      ? fs.statSync(finalOutputPath).size
+      : 0;
 
-    // read fileSize of the final file
-    const finalFile = fs
-      .readdirSync("./temp/")
-      .find((file) => file.includes(`RIOFINAL-${rnd5dig}`));
-    const finalFilePath = `temp/${finalFile}`;
-    const finalFileSize = fs.statSync(finalFilePath).size; // in bytes
-
-    // Use env variable for large files, 5 seconds for small files
     const deleteDelay =
       finalFileSize < 10 * 1024 * 1024
         ? 5000
         : parseInt(process.env.FILE_DELETE_TIMEOUT) || 300000;
 
-    filesToDelete.forEach((file) => {
-      const filePath = `./temp/${file}`;
-      setTimeout(() => {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (err) {
-          console.error(`Failed to delete ${filePath}:`, err);
-        }
-      }, deleteDelay);
-    });
+    setTimeout(() => {
+      removePathWithRetry(runTempDir);
+    }, deleteDelay);
   }
+}
+
+function removePathWithRetry(targetPath, attempts = 5, delay = 1000) {
+  fs.rm(targetPath, { recursive: true, force: true }, (err) => {
+    if (!err) return;
+
+    if (["EACCES", "EPERM", "EBUSY"].includes(err.code) && attempts > 1) {
+      setTimeout(
+        () => removePathWithRetry(targetPath, attempts - 1, delay),
+        delay,
+      );
+      return;
+    }
+
+    console.error(`Failed to delete ${targetPath}:`, err);
+  });
 }
